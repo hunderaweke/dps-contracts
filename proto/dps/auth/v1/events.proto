@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package dps.auth.v1;
+
+import "dps/auth/v1/auth.proto";
+import "dps/auth/v1/policy.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+
+// AUTH events. None carries a PIN, OTP, token or credential.
+
+// SessionStarted: a customer signed in. Record key: session_id.
+message SessionStarted {
+  option (dps.events.v1.event) = {type: "auth.session.started.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string session_id = 2;
+  string customer_id = 3;
+  string device_id = 4;
+  CredentialType credential_type = 5;
+}
+
+// DeviceRegistered: a device was bound to a customer. Record key: device_id.
+message DeviceRegistered {
+  option (dps.events.v1.event) = {type: "auth.device.registered.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string device_id = 2;
+  string customer_id = 3;
+  string device_model = 4;
+  // True when this registration replaced the customer's previous device.
+  bool replaced_previous = 5;
+}
+
+// PaymentDecided: the policy decision point decided on a payment. Published
+// for every AuthorisePayment decision, allowed or not, so fraud.behaviour-
+// profiler and audit see denials too. Record key: authorisation_id, or the
+// request's idempotency key when nothing was authorised.
+message PaymentDecided {
+  option (dps.events.v1.event) = {type: "auth.payment.decided.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string authorisation_id = 2;
+  PaymentIntent intent = 3;
+  Evaluation evaluation = 4;
+}

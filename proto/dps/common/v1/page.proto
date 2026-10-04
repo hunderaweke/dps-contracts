@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package dps.common.v1;
+
+// PageRequest is cursor pagination for list calls.
+message PageRequest {
+  // Maximum items to return. Servers cap this; 0 means the server default.
+  int32 page_size = 1;
+  // Opaque cursor from a previous PageResponse. Empty for the first page.
+  string page_token = 2;
+}
+
+// PageResponse carries the cursor for the next page.
+message PageResponse {
+  // Empty when there are no more items.
+  string next_page_token = 1;
+}

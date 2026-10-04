@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package dps.auth.v1;
+
+import "dps/common/v1/context.proto";
+import "google/protobuf/timestamp.proto";
+
+// AuthService is the Authentication service behind the OIDC flows at the
+// edge. Customers sign in with a PIN or biometric on a registered device;
+// one-time passwords cover registration and step-up.
+//
+// Secrets (PINs, OTPs) are sent already encrypted by the channel and are
+// never logged, echoed or stored in events.
+service AuthService {
+  // SendOtp sends a one-time password over SMS, email or WhatsApp.
+  rpc SendOtp(SendOtpRequest) returns (SendOtpResponse);
+
+  // VerifyOtp checks a one-time password against its challenge.
+  rpc VerifyOtp(VerifyOtpRequest) returns (VerifyOtpResponse);
+
+  // RegisterDevice binds a device to a customer after a verified OTP.
+  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse);
+
+  // SignIn verifies a PIN or biometric assertion on a registered device and
+  // opens a session.
+  rpc SignIn(SignInRequest) returns (SignInResponse);
+
+  // RefreshSession swaps a refresh token for new tokens.
+  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse);
+
+  // RevokeSession ends a session and blocklists its tokens.
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse);
+
+  // IntrospectToken validates an access token for BFFs and services.
+  rpc IntrospectToken(IntrospectTokenRequest) returns (IntrospectTokenResponse);
+}
+
+// OtpPurpose says what an OTP authorises.
+enum OtpPurpose {
+  OTP_PURPOSE_UNSPECIFIED = 0;
+  OTP_PURPOSE_REGISTRATION = 1;
+  OTP_PURPOSE_DEVICE_CHANGE = 2;
+  OTP_PURPOSE_PIN_RESET = 3;
+  // Required when dps.auth.v1.PolicyService returns DECISION_STEP_UP_REQUIRED.
+  OTP_PURPOSE_STEP_UP = 4;
+}
+
+// OtpDelivery is the channel an OTP is sent on.
+enum OtpDelivery {
+  OTP_DELIVERY_UNSPECIFIED = 0;
+  OTP_DELIVERY_SMS = 1;
+  OTP_DELIVERY_EMAIL = 2;
+  OTP_DELIVERY_WHATSAPP = 3;
+}
+
+// CredentialType is how the customer proved who they are.
+enum CredentialType {
+  CREDENTIAL_TYPE_UNSPECIFIED = 0;
+  CREDENTIAL_TYPE_PIN = 1;
+  CREDENTIAL_TYPE_BIOMETRIC = 2;
+}
+
+// Tokens are the session tokens issued to a channel.
+message Tokens {
+  string access_token = 1;
+  google.protobuf.Timestamp access_token_expires_at = 2;
+  string refresh_token = 3;
+  google.protobuf.Timestamp refresh_token_expires_at = 4;
+}
+
+// SendOtpRequest asks for an OTP.
+message SendOtpRequest {
+  dps.common.v1.RequestContext context = 1;
+  OtpPurpose purpose = 2;
+  OtpDelivery delivery = 3;
+  // Phone number in E.164 or email address, matching delivery.
+  string destination = 4;
+}
+
+// SendOtpResponse returns the challenge to verify against.
+message SendOtpResponse {
+  string challenge_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+  // Earliest time another OTP may be requested.
+  google.protobuf.Timestamp resend_after = 3;
+}
+
+// VerifyOtpRequest submits an OTP.
+message VerifyOtpRequest {
+  dps.common.v1.RequestContext context = 1;
+  string challenge_id = 2;
+  // Encrypted by the channel.
+  bytes encrypted_otp = 3;
+}
+
+// VerifyOtpResponse returns a proof usable once for the OTP's purpose.
+message VerifyOtpResponse {
+  bool verified = 1;
+  // Single-use proof passed to the call the OTP authorises.
+  string verification_token = 2;
+  // Attempts left before the challenge locks.
+  int32 attempts_remaining = 3;
+}
+
+// RegisterDeviceRequest binds a device.
+message RegisterDeviceRequest {
+  dps.common.v1.RequestContext context = 1;
+  string customer_id = 2;
+  // From VerifyOtp with purpose REGISTRATION or DEVICE_CHANGE.
+  string verification_token = 3;
+  // Device public key used to verify biometric assertions.
+  bytes device_public_key = 4;
+  string device_model = 5;
+  string os_version = 6;
+}
+
+// RegisterDeviceResponse returns the registered device.
+message RegisterDeviceResponse {
+  string device_id = 1;
+}
+
+// SignInRequest opens a session.
+message SignInRequest {
+  dps.common.v1.RequestContext context = 1;
+  string customer_id = 2;
+  CredentialType credential_type = 3;
+  // Encrypted PIN, or a biometric assertion signed with the device key.
+  bytes credential = 4;
+}
+
+// SignInResponse returns tokens on success.
+message SignInResponse {
+  string session_id = 1;
+  Tokens tokens = 2;
+}
+
+// RefreshSessionRequest renews tokens.
+message RefreshSessionRequest {
+  dps.common.v1.RequestContext context = 1;
+  string refresh_token = 2;
+}
+
+// RefreshSessionResponse returns new tokens. The old refresh token is spent.
+message RefreshSessionResponse {
+  Tokens tokens = 1;
+}
+
+// RevokeSessionRequest ends a session.
+message RevokeSessionRequest {
+  dps.common.v1.RequestContext context = 1;
+  string session_id = 2;
+}
+
+// RevokeSessionResponse confirms the revocation.
+message RevokeSessionResponse {}
+
+// IntrospectTokenRequest checks an access token.
+message IntrospectTokenRequest {
+  string access_token = 1;
+}
+
+// IntrospectTokenResponse describes a token.
+message IntrospectTokenResponse {
+  // False for expired, revoked or unknown tokens; other fields are then empty.
+  bool active = 1;
+  string session_id = 2;
+  dps.common.v1.Actor actor = 3;
+  string device_id = 4;
+  repeated string scopes = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}

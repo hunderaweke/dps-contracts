@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package dps.events.v1;
+
+import "google/protobuf/descriptor.proto";
+
+// EventOptions binds an event message to its Redpanda topic.
+message EventOptions {
+  // domain.entity.event.vN. Also the topic name and the Schema Registry
+  // subject prefix ("<type>-value").
+  string type = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  // Set on every event message:
+  //
+  //   message OperationCompleted {
+  //     option (dps.events.v1.event) = {type: "ledger.operation.completed.v1"};
+  //     dps.events.v1.EventMetadata metadata = 1;
+  //     ...
+  //   }
+  //
+  // Producers and consumers read it through protoreflect, so no service
+  // hard-codes topic names.
+  EventOptions event = 51000;
+}

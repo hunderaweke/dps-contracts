@@ -1,0 +1,212 @@
+syntax = "proto3";
+
+package dps.ledger.v1;
+
+import "dps/common/v1/context.proto";
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// LedgerService is the one money path (AD-2). Every birr that moves goes
+// through StartOperation, then CompleteOperation or AbortOperation.
+//
+// The contract is neutral about how funds are held at the CBS. The ledger
+// stamps the hold mode on each operation; callers never choose it and never
+// need to know it.
+//
+// Every mutating call is idempotent on idempotency_key: a repeat call with the
+// same key returns the original result, and a repeat with the same key but a
+// different request returns ALREADY_EXISTS.
+//
+// Only Ledger and Account Management may call the CBS.
+service LedgerService {
+  // StartOperation holds the funds, or debits them to IN_FLIGHT, and records
+  // the operation as STARTED. Limits, fraud screening and a fee quote must
+  // have passed first; their references go in controls.
+  rpc StartOperation(StartOperationRequest) returns (StartOperationResponse);
+
+  // CompleteOperation finalises a STARTED operation once the external rail
+  // confirms success. Refunds after completion are new REFUND operations,
+  // never edits to this one.
+  rpc CompleteOperation(CompleteOperationRequest) returns (CompleteOperationResponse);
+
+  // AbortOperation releases held funds of a STARTED operation. Only call it
+  // when the rail has definitely failed. An unknown outcome stays STARTED and
+  // is resolved by a status query to the rail.
+  rpc AbortOperation(AbortOperationRequest) returns (AbortOperationResponse);
+
+  // GetOperation returns an operation and its entries.
+  rpc GetOperation(GetOperationRequest) returns (GetOperationResponse);
+}
+
+// OperationType is the business flow that moved the money.
+enum OperationType {
+  OPERATION_TYPE_UNSPECIFIED = 0;
+  OPERATION_TYPE_INTERNAL_TRANSFER = 1;
+  OPERATION_TYPE_INTERBANK_TRANSFER = 2;
+  OPERATION_TYPE_WALLET_TRANSFER = 3;
+  OPERATION_TYPE_MERCHANT_QR_PAYMENT = 4;
+  OPERATION_TYPE_BILL_PAYMENT = 5;
+  OPERATION_TYPE_AIRTIME = 6;
+  OPERATION_TYPE_FUEL_PAYMENT = 7;
+  OPERATION_TYPE_EVENT_TICKET = 8;
+  OPERATION_TYPE_AIRLINE_PAYMENT = 9;
+  OPERATION_TYPE_REFUND = 10;
+}
+
+// OperationState is the lifecycle of an operation.
+// STARTED -> COMPLETED, or STARTED -> ABORTED. Nothing else.
+enum OperationState {
+  OPERATION_STATE_UNSPECIFIED = 0;
+  OPERATION_STATE_STARTED = 1;
+  OPERATION_STATE_COMPLETED = 2;
+  OPERATION_STATE_ABORTED = 3;
+}
+
+// HoldMode is how the ledger secured the funds at the CBS. Set by the ledger's
+// hold mode selector, never by the caller.
+enum HoldMode {
+  HOLD_MODE_UNSPECIFIED = 0;
+  // A native CBS hold (lien) released or captured later.
+  HOLD_MODE_NATIVE_HOLD = 1;
+  // Debit to the IN_FLIGHT suspense account, compensated by a credit on abort.
+  HOLD_MODE_DEBIT_TO_IN_FLIGHT = 2;
+}
+
+// AbortReason says why an operation was aborted.
+enum AbortReason {
+  ABORT_REASON_UNSPECIFIED = 0;
+  // The external rail returned a definite failure.
+  ABORT_REASON_RAIL_DECLINED = 1;
+  // The customer or caller cancelled before the rail was called.
+  ABORT_REASON_CANCELLED = 2;
+  // The fee quote expired before the rail was called.
+  ABORT_REASON_QUOTE_EXPIRED = 3;
+  // Resolved from the manual queue by operations staff.
+  ABORT_REASON_MANUAL_RESOLUTION = 4;
+}
+
+// EntryDirection is the side of a double-entry posting.
+enum EntryDirection {
+  ENTRY_DIRECTION_UNSPECIFIED = 0;
+  ENTRY_DIRECTION_DEBIT = 1;
+  ENTRY_DIRECTION_CREDIT = 2;
+}
+
+// Controls are the references proving the pre-money checks passed
+// ("controls before money"). The ledger rejects a StartOperation without them,
+// except for REFUND operations.
+message Controls {
+  // From dps.auth.v1.PolicyService/AuthorisePayment: limits and fraud rules
+  // passed and the limit usage is consumed.
+  string policy_authorisation_id = 1;
+  // From dps.fee.v1.FeeService/QuoteFee. Must be unexpired.
+  string fee_quote_id = 2;
+}
+
+// Entry is one append-only posting. On every operation the debits equal the
+// credits.
+message Entry {
+  string entry_id = 1;
+  // Platform account ID, or a GL account code for internal accounts.
+  string account_id = 2;
+  EntryDirection direction = 3;
+  dps.common.v1.Money amount = 4;
+  google.protobuf.Timestamp posted_at = 5;
+  // CBS posting reference, when the entry reached the CBS.
+  string cbs_reference = 6;
+}
+
+// Operation is a single movement of money and its entries.
+message Operation {
+  string operation_id = 1;
+  OperationType type = 2;
+  OperationState state = 3;
+  HoldMode hold_mode = 4;
+
+  // Account the money leaves.
+  string debit_account_id = 5;
+  // Account or GL the money reaches (beneficiary, settlement or biller GL).
+  string credit_account_id = 6;
+  // Principal amount, excluding fees.
+  dps.common.v1.Money amount = 7;
+  // Total fee charged, from the fee quote.
+  dps.common.v1.Money fee = 8;
+
+  Controls controls = 9;
+  // Calling service's own record ID, for example the transfer attempt ID.
+  string source_reference = 10;
+  // Reference from the external rail, set on completion.
+  string external_reference = 11;
+  // For REFUND operations, the completed operation being refunded.
+  string refund_of_operation_id = 12;
+  // Shown on statements.
+  string narration = 13;
+
+  AbortReason abort_reason = 14;
+  repeated Entry entries = 15;
+
+  google.protobuf.Timestamp started_at = 16;
+  // Set when state is COMPLETED or ABORTED.
+  google.protobuf.Timestamp finished_at = 17;
+}
+
+// StartOperationRequest opens an operation.
+message StartOperationRequest {
+  // Unique per logical attempt. Checked in Valkey, then a database unique key.
+  string idempotency_key = 1;
+  dps.common.v1.RequestContext context = 2;
+  OperationType type = 3;
+  string debit_account_id = 4;
+  string credit_account_id = 5;
+  // Principal amount. Must be positive.
+  dps.common.v1.Money amount = 6;
+  Controls controls = 7;
+  string source_reference = 8;
+  // Required when type is REFUND, empty otherwise.
+  string refund_of_operation_id = 9;
+  string narration = 10;
+}
+
+// StartOperationResponse returns the operation in state STARTED.
+message StartOperationResponse {
+  Operation operation = 1;
+}
+
+// CompleteOperationRequest finalises an operation.
+message CompleteOperationRequest {
+  string idempotency_key = 1;
+  dps.common.v1.RequestContext context = 2;
+  string operation_id = 3;
+  // Reference from the rail (EthSwitch, biller, operator or CBS).
+  string external_reference = 4;
+}
+
+// CompleteOperationResponse returns the operation in state COMPLETED.
+message CompleteOperationResponse {
+  Operation operation = 1;
+}
+
+// AbortOperationRequest releases an operation's funds.
+message AbortOperationRequest {
+  string idempotency_key = 1;
+  dps.common.v1.RequestContext context = 2;
+  string operation_id = 3;
+  AbortReason reason = 4;
+  // Free text for audit, for example the rail's error code.
+  string detail = 5;
+}
+
+// AbortOperationResponse returns the operation in state ABORTED.
+message AbortOperationResponse {
+  Operation operation = 1;
+}
+
+// GetOperationRequest looks up one operation.
+message GetOperationRequest {
+  string operation_id = 1;
+}
+
+// GetOperationResponse returns the operation with its entries.
+message GetOperationResponse {
+  Operation operation = 1;
+}

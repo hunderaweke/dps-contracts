@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package dps.audit.v1;
+
+import "dps/common/v1/context.proto";
+import "dps/common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+
+// AuditService serves the universal audit trail. Records are written by the
+// audit.universal consumer from every DPS event topic; there is
+// no write RPC. Records are append-only and move to the WORM tier on
+// retention.
+service AuditService {
+  // SearchAuditRecords finds records for ops consoles and investigations.
+  rpc SearchAuditRecords(SearchAuditRecordsRequest) returns (SearchAuditRecordsResponse);
+
+  // GetAuditRecord returns one record.
+  rpc GetAuditRecord(GetAuditRecordRequest) returns (GetAuditRecordResponse);
+}
+
+// AuditRecord is one audited fact.
+message AuditRecord {
+  string record_id = 1;
+  // EventMetadata.event_id of the event this record was written from.
+  string event_id = 2;
+  // domain.entity.event.vN of the source event.
+  string event_type = 3;
+  string aggregate_id = 4;
+  dps.common.v1.Actor actor = 5;
+  dps.common.v1.Channel channel = 6;
+  string correlation_id = 7;
+  string producer = 8;
+  google.protobuf.Timestamp occurred_at = 9;
+  google.protobuf.Timestamp recorded_at = 10;
+  // Payload as JSON with secrets and card data already removed.
+  string redacted_payload_json = 11;
+  // Hash of this record chained to the previous one, for tamper evidence.
+  bytes chain_hash = 12;
+}
+
+// SearchAuditRecordsRequest filters the trail. Empty fields do not filter.
+message SearchAuditRecordsRequest {
+  dps.common.v1.RequestContext context = 1;
+  string aggregate_id = 2;
+  string actor_id = 3;
+  string correlation_id = 4;
+  // Exact type, or a prefix ending in "*", for example "ledger.*".
+  string event_type = 5;
+  google.protobuf.Timestamp from = 6;
+  google.protobuf.Timestamp to = 7;
+  dps.common.v1.PageRequest page = 8;
+}
+
+// SearchAuditRecordsResponse returns one page, newest first.
+message SearchAuditRecordsResponse {
+  repeated AuditRecord records = 1;
+  dps.common.v1.PageResponse page = 2;
+}
+
+// GetAuditRecordRequest looks up one record.
+message GetAuditRecordRequest {
+  string record_id = 1;
+}
+
+// GetAuditRecordResponse returns the record.
+message GetAuditRecordResponse {
+  AuditRecord record = 1;
+}

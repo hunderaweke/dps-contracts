@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package dps.ledger.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/ledger/v1/ledger.proto";
+
+// Ledger events. Record key: operation_id. Consumers include
+// account-management.balance-projector, notification.dispatcher,
+// notification.receipt-generator, audit.universal and settlement.collector.
+
+// OperationStarted: funds are held or debited to IN_FLIGHT.
+message OperationStarted {
+  option (dps.events.v1.event) = {type: "ledger.operation.started.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Operation operation = 2;
+}
+
+// OperationCompleted: the rail confirmed and the operation is final.
+message OperationCompleted {
+  option (dps.events.v1.event) = {type: "ledger.operation.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Operation operation = 2;
+}
+
+// OperationAborted: held funds were released.
+message OperationAborted {
+  option (dps.events.v1.event) = {type: "ledger.operation.aborted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Operation operation = 2;
+}
+
+// OperationOrphaned: an operation stayed STARTED past the watcher threshold.
+// At 15 minutes it raises an alert; at 24 hours it moves to the manual queue.
+message OperationOrphaned {
+  option (dps.events.v1.event) = {type: "ledger.operation.orphaned.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Operation operation = 2;
+  // True once the operation has been moved to the manual queue.
+  bool moved_to_manual_queue = 3;
+}

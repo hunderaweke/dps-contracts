@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package dps.account.v1;
+
+import "dps/common/v1/context.proto";
+import "dps/common/v1/money.proto";
+import "dps/common/v1/page.proto";
+import "google/protobuf/timestamp.proto";
+
+// AccountService is Account Management. It links platform accounts to the
+// CBS, which stays the system of record, and serves balances projected from
+// ledger events.
+//
+// Only Ledger and Account Management may call the CBS.
+service AccountService {
+  // OpenAccount opens a CBS account for an onboarded customer and links it.
+  // Idempotent on idempotency_key.
+  rpc OpenAccount(OpenAccountRequest) returns (OpenAccountResponse);
+
+  // GetAccount returns one account by platform ID.
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse);
+
+  // ListCustomerAccounts returns a customer's accounts.
+  rpc ListCustomerAccounts(ListCustomerAccountsRequest) returns (ListCustomerAccountsResponse);
+
+  // GetBalance returns the projected balance of an account.
+  rpc GetBalance(GetBalanceRequest) returns (GetBalanceResponse);
+
+  // ResolveAccount looks up a beneficiary by CBS account number before a
+  // transfer, returning the masked name the sender confirms.
+  rpc ResolveAccount(ResolveAccountRequest) returns (ResolveAccountResponse);
+}
+
+// AccountStatus mirrors the CBS account status.
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  // Requested, waiting for the CBS to confirm.
+  ACCOUNT_STATUS_PENDING = 1;
+  ACCOUNT_STATUS_ACTIVE = 2;
+  // No debits allowed; credits still post.
+  ACCOUNT_STATUS_DEBIT_BLOCKED = 3;
+  ACCOUNT_STATUS_FROZEN = 4;
+  ACCOUNT_STATUS_DORMANT = 5;
+  ACCOUNT_STATUS_CLOSED = 6;
+}
+
+// Account is a customer account linked to the CBS.
+message Account {
+  string account_id = 1;
+  string customer_id = 2;
+  // The CBS account number the customer sees.
+  string cbs_account_number = 3;
+  // CBS product code, for example a savings or current product.
+  string product_code = 4;
+  string currency_code = 5;
+  AccountStatus status = 6;
+  // Account holder name as held at the CBS.
+  string holder_name = 7;
+  google.protobuf.Timestamp opened_at = 8;
+}
+
+// Balance is an account balance projected from ledger events.
+message Balance {
+  // Balance at the CBS including held funds.
+  dps.common.v1.Money ledger_balance = 1;
+  // Funds held by STARTED ledger operations.
+  dps.common.v1.Money held = 2;
+  // What the customer can spend now: ledger_balance minus held.
+  dps.common.v1.Money available = 3;
+  // Time of the last event or CBS read the projection reflects.
+  google.protobuf.Timestamp as_of = 4;
+}
+
+// OpenAccountRequest asks for a new account.
+message OpenAccountRequest {
+  string idempotency_key = 1;
+  dps.common.v1.RequestContext context = 2;
+  string customer_id = 3;
+  string product_code = 4;
+  string currency_code = 5;
+}
+
+// OpenAccountResponse returns the account, PENDING or ACTIVE.
+message OpenAccountResponse {
+  Account account = 1;
+}
+
+// GetAccountRequest looks up one account.
+message GetAccountRequest {
+  string account_id = 1;
+}
+
+// GetAccountResponse returns the account.
+message GetAccountResponse {
+  Account account = 1;
+}
+
+// ListCustomerAccountsRequest lists a customer's accounts.
+message ListCustomerAccountsRequest {
+  string customer_id = 1;
+  dps.common.v1.PageRequest page = 2;
+}
+
+// ListCustomerAccountsResponse returns one page of accounts.
+message ListCustomerAccountsResponse {
+  repeated Account accounts = 1;
+  dps.common.v1.PageResponse page = 2;
+}
+
+// GetBalanceRequest asks for an account balance.
+message GetBalanceRequest {
+  string account_id = 1;
+}
+
+// GetBalanceResponse returns the balance.
+message GetBalanceResponse {
+  Balance balance = 1;
+}
+
+// ResolveAccountRequest looks up a beneficiary.
+message ResolveAccountRequest {
+  dps.common.v1.RequestContext context = 1;
+  string cbs_account_number = 2;
+}
+
+// ResolveAccountResponse returns what the sender may see.
+message ResolveAccountResponse {
+  // Masked, for example "Ab*** Ke***".
+  string masked_holder_name = 1;
+  // False when the account cannot receive credits.
+  bool can_receive = 2;
+}

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package dps.common.v1;
+
+// Channel is where a request entered the platform.
+enum Channel {
+  CHANNEL_UNSPECIFIED = 0;
+  CHANNEL_MOBILE_APP = 1;
+  CHANNEL_WEB = 2;
+  CHANNEL_USSD = 3;
+  CHANNEL_OPS_CONSOLE = 4;
+  CHANNEL_PARTNER_API = 5;
+  CHANNEL_MINI_APP = 6;
+}
+
+// ActorType says who acted: a customer, a bank staff member or a service.
+enum ActorType {
+  ACTOR_TYPE_UNSPECIFIED = 0;
+  ACTOR_TYPE_CUSTOMER = 1;
+  ACTOR_TYPE_STAFF = 2;
+  ACTOR_TYPE_SERVICE = 3;
+  ACTOR_TYPE_PARTNER = 4;
+}
+
+// Actor identifies who initiated a request. Set by the BFF from the verified
+// token, never from client input.
+message Actor {
+  ActorType type = 1;
+  // Customer ID, staff ID, SPIFFE ID or partner ID depending on type.
+  string id = 2;
+  // Staff role or partner scope when relevant; empty for customers.
+  string role = 3;
+}
+
+// RequestContext travels on every business call so limits, fraud, fee and
+// audit see the same facts.
+message RequestContext {
+  Channel channel = 1;
+  Actor actor = 2;
+  // Registered device ID for customer channels.
+  string device_id = 3;
+  // Correlates every call and event that belongs to one customer action.
+  string correlation_id = 4;
+  // Client IP as seen at the edge.
+  string client_ip = 5;
+}

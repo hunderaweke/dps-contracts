@@ -1,0 +1,29 @@
+# Copy to the root of a DPS service as buf.gen.yaml, then edit the three
+# marked lines. Generate with: go tool buf generate
+version: v2
+clean: true
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      # EDIT 1: your service's module path + /pkg/dpsapi/gen
+      value: github.com/AlelgnHailu1/<service>/pkg/dpsapi/gen
+inputs:
+  - git_repo: https://github.com/AlelgnHailu1/dps-contracts.git
+    subdir: proto
+    # EDIT 2: the contracts release to build against. The mock (cmd/mock)
+    # and the real service (cmd/server) must use the same tag.
+    tag: v0.1.0
+    # EDIT 3: the packages this service serves, calls or consumes events
+    # from. Keep common and events; they are imported by everything else.
+    paths:
+      - dps/common/v1
+      - dps/events/v1
+      - dps/ledger/v1
+plugins:
+  - local: ["go", "tool", "protoc-gen-go"]
+    out: pkg/dpsapi/gen
+    opt: paths=source_relative
+  - local: ["go", "tool", "protoc-gen-go-grpc"]
+    out: pkg/dpsapi/gen
+    opt: paths=source_relative

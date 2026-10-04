@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package dps.common.v1;
+
+// Money is an amount in a currency's minor unit. Floating point is never used
+// for money anywhere in DPS.
+message Money {
+  // ISO 4217 code. "ETB" for every Phase One flow.
+  string currency_code = 1;
+  // Amount in the minor unit (santim for ETB). 1 birr = 100.
+  int64 amount_minor = 2;
+}

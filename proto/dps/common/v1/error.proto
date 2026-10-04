@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package dps.common.v1;
+
+// ErrorDetail is the platform error model. Every service, mock or real,
+// attaches exactly one ErrorDetail to every non-OK gRPC status, so retry
+// logic and error screens behave the same before and after a mock is
+// replaced.
+message ErrorDetail {
+  // Stable machine code, upper snake case and prefixed by the service, for
+  // example "LEDGER_INSUFFICIENT_FUNDS" or "FEE_QUOTE_EXPIRED".
+  string code = 1;
+  // Key the channel uses to look up the customer-facing text, for example
+  // "error.ledger.insufficient_funds". Never a sentence.
+  string message_key = 2;
+  // True when the same request, with the same idempotency key, may succeed
+  // if retried.
+  bool retryable = 3;
+  // Copied from RequestContext.correlation_id.
+  string correlation_id = 4;
+}

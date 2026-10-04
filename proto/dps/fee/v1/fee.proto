@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package dps.fee.v1;
+
+import "dps/common/v1/context.proto";
+import "dps/common/v1/money.proto";
+import "dps/ledger/v1/ledger.proto";
+import "google/protobuf/timestamp.proto";
+
+// FeeService prices an operation before any money moves. Fee schedules are
+// configuration as data, changed through maker-checker, not releases.
+service FeeService {
+  // QuoteFee returns a signed quote valid for 5 minutes. The quote ID goes in
+  // dps.ledger.v1.Controls.fee_quote_id.
+  rpc QuoteFee(QuoteFeeRequest) returns (QuoteFeeResponse);
+
+  // GetFeeQuote returns a quote so a service can confirm it is unexpired and
+  // matches the operation it is about to start.
+  rpc GetFeeQuote(GetFeeQuoteRequest) returns (GetFeeQuoteResponse);
+}
+
+// FeeLine is one component of a fee, for example the service fee or VAT.
+message FeeLine {
+  // Fee component code from the fee schedule.
+  string code = 1;
+  string description = 2;
+  dps.common.v1.Money amount = 3;
+  // GL account the fee is credited to.
+  string income_account_id = 4;
+}
+
+// FeeQuote is a priced, signed, short-lived offer.
+message FeeQuote {
+  string quote_id = 1;
+  dps.ledger.v1.OperationType operation_type = 2;
+  string debit_account_id = 3;
+  // Principal the quote was priced for.
+  dps.common.v1.Money amount = 4;
+  repeated FeeLine lines = 5;
+  // Sum of lines.
+  dps.common.v1.Money total_fee = 6;
+  // Fee schedule version used, for audit.
+  string schedule_version = 7;
+  google.protobuf.Timestamp issued_at = 8;
+  // issued_at plus 5 minutes.
+  google.protobuf.Timestamp expires_at = 9;
+  // Signature over the fields above, so the Ledger can verify the quote
+  // without a call back to this service.
+  bytes signature = 10;
+  // ID of the key that produced the signature.
+  string signing_key_id = 11;
+}
+
+// QuoteFeeRequest asks for a price.
+message QuoteFeeRequest {
+  dps.common.v1.RequestContext context = 1;
+  dps.ledger.v1.OperationType operation_type = 2;
+  string debit_account_id = 3;
+  dps.common.v1.Money amount = 4;
+  // Biller, merchant or bank code when the fee depends on the counterparty.
+  string counterparty_code = 5;
+}
+
+// QuoteFeeResponse returns the quote.
+message QuoteFeeResponse {
+  FeeQuote quote = 1;
+}
+
+// GetFeeQuoteRequest looks up a quote.
+message GetFeeQuoteRequest {
+  string quote_id = 1;
+}
+
+// GetFeeQuoteResponse returns the quote.
+message GetFeeQuoteResponse {
+  FeeQuote quote = 1;
+}

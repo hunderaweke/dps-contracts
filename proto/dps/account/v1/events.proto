@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package dps.account.v1;
+
+import "dps/account/v1/account.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+
+// Account Management events. Record key: account_id.
+
+// AccountOpened: the CBS confirmed a new account.
+message AccountOpened {
+  option (dps.events.v1.event) = {type: "account.account.opened.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Account account = 2;
+}
+
+// AccountStatusChanged: the CBS status of an account changed.
+message AccountStatusChanged {
+  option (dps.events.v1.event) = {type: "account.account.status_changed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Account account = 2;
+  AccountStatus previous_status = 3;
+}

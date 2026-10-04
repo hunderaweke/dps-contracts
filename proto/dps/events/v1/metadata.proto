@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package dps.events.v1;
+
+import "dps/common/v1/context.proto";
+import "google/protobuf/timestamp.proto";
+
+// Every DPS domain event is a typed protobuf message published to Redpanda
+// through the producing service's transactional outbox. Rules, in short (the
+// full set is in docs/events.md):
+//
+//   - One message type per topic. The topic name is the event type,
+//     domain.entity.event.vN, declared on the message with the
+//     (dps.events.v1.event) option.
+//   - The record value is that message in Schema Registry wire format,
+//     subject "<topic>-value".
+//   - The record key is EventMetadata.aggregate_id, so every event for one
+//     aggregate stays ordered on one partition.
+//   - Every event message carries EventMetadata as field 1.
+
+// ProducerImpl says whether a mock or the real service produced the event.
+// Mocks publish the same topics and schemas as the real service and mark
+// themselves here and in the x-dps-impl record header.
+enum ProducerImpl {
+  PRODUCER_IMPL_UNSPECIFIED = 0;
+  PRODUCER_IMPL_REAL = 1;
+  PRODUCER_IMPL_MOCK = 2;
+}
+
+// EventMetadata is field 1 of every event message.
+message EventMetadata {
+  // Unique per event, set when the outbox row is written. Consumers dedupe on
+  // it, because delivery is at least once.
+  string event_id = 1;
+  // Same as the topic and the message's (dps.events.v1.event).type, for
+  // example "ledger.operation.completed.v1".
+  string event_type = 2;
+  // ID of the entity the event is about. Used as the record key.
+  string aggregate_id = 3;
+  // Monotonic per aggregate, starting at 1. Lets consumers spot gaps and
+  // drop stale updates.
+  int64 aggregate_version = 4;
+  // When the change committed in the producing service.
+  google.protobuf.Timestamp occurred_at = 5;
+  // Producing service name, for example "ledger".
+  string producer = 6;
+  ProducerImpl producer_impl = 7;
+  // Copied from the RequestContext of the call that caused the change.
+  string correlation_id = 8;
+  // event_id of the event that caused this one, if any.
+  string causation_id = 9;
+  // Who caused the change. Empty for system-initiated events.
+  dps.common.v1.Actor actor = 10;
+}

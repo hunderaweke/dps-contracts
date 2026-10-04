@@ -1,0 +1,146 @@
+syntax = "proto3";
+
+package dps.auth.v1;
+
+import "dps/common/v1/context.proto";
+import "dps/common/v1/money.proto";
+import "dps/ledger/v1/ledger.proto";
+import "google/protobuf/timestamp.proto";
+
+// PolicyService is the policy decision point inside AUTH. It enforces
+// channel, tier, role and customer limits and the inline fraud rules before
+// any money moves. Limit values and rules are configuration as data, changed
+// through maker-checker in ADM.
+//
+// Flow: CheckPayment (read only) to warn the customer early, then
+// AuthorisePayment right before dps.ledger.v1.LedgerService/StartOperation.
+// Limits come back automatically when ledger.operation.aborted.v1 arrives
+// (consumer auth.policy-releaser), so a caller crash cannot leak usage.
+service PolicyService {
+  // CheckPayment evaluates without consuming limits.
+  rpc CheckPayment(CheckPaymentRequest) returns (CheckPaymentResponse);
+
+  // AuthorisePayment evaluates and, if allowed, consumes the limit usage.
+  // Idempotent on idempotency_key. The authorisation ID goes in
+  // dps.ledger.v1.Controls.policy_authorisation_id.
+  rpc AuthorisePayment(AuthorisePaymentRequest) returns (AuthorisePaymentResponse);
+
+  // ReleasePayment gives back limit usage for a payment abandoned before any
+  // ledger operation started, for example when the fee quote expired.
+  // Idempotent: releasing twice has no extra effect.
+  rpc ReleasePayment(ReleasePaymentRequest) returns (ReleasePaymentResponse);
+}
+
+// Decision is the outcome of a policy evaluation.
+enum Decision {
+  DECISION_UNSPECIFIED = 0;
+  DECISION_ALLOW = 1;
+  DECISION_DENY = 2;
+  // Allowed only after an OTP with purpose STEP_UP; retry with
+  // step_up_token set.
+  DECISION_STEP_UP_REQUIRED = 3;
+  // Held for manual fraud review. The payment must not start.
+  DECISION_REVIEW = 4;
+}
+
+// LimitScope is the dimension a limit applies to.
+enum LimitScope {
+  LIMIT_SCOPE_UNSPECIFIED = 0;
+  LIMIT_SCOPE_CHANNEL = 1;
+  LIMIT_SCOPE_CUSTOMER_TIER = 2;
+  LIMIT_SCOPE_STAFF_ROLE = 3;
+  LIMIT_SCOPE_CUSTOMER = 4;
+}
+
+// LimitPeriod is the window a limit counts over.
+enum LimitPeriod {
+  LIMIT_PERIOD_UNSPECIFIED = 0;
+  LIMIT_PERIOD_PER_TRANSACTION = 1;
+  LIMIT_PERIOD_DAILY = 2;
+  LIMIT_PERIOD_WEEKLY = 3;
+  LIMIT_PERIOD_MONTHLY = 4;
+}
+
+// LimitResult is the outcome for one applicable limit.
+message LimitResult {
+  string limit_id = 1;
+  LimitScope scope = 2;
+  LimitPeriod period = 3;
+  // Configured maximum amount for the period.
+  dps.common.v1.Money max_amount = 4;
+  // Configured maximum count for the period; 0 means no count limit.
+  int32 max_count = 5;
+  // Amount left in the period before this request.
+  dps.common.v1.Money remaining_amount = 6;
+  int32 remaining_count = 7;
+  bool breached = 8;
+}
+
+// RuleHit is one fraud rule that fired.
+message RuleHit {
+  string rule_id = 1;
+  // Score the rule contributed, 0 to 100.
+  int32 score = 2;
+}
+
+// Evaluation is the full result of a policy check.
+message Evaluation {
+  Decision decision = 1;
+  // Every applicable limit; the breached ones explain a DENY.
+  repeated LimitResult limits = 2;
+  // Fraud rules that fired. Shown to ops consoles only, never to customers.
+  repeated RuleHit rule_hits = 3;
+  // Combined fraud risk score, 0 to 100.
+  int32 risk_score = 4;
+}
+
+// PaymentIntent describes the payment being evaluated.
+message PaymentIntent {
+  dps.common.v1.RequestContext context = 1;
+  string customer_id = 2;
+  // KYC tier, for example "TIER_1".
+  string customer_tier = 3;
+  string debit_account_id = 4;
+  // Beneficiary account, merchant ID, biller code or phone number.
+  string counterparty = 5;
+  dps.ledger.v1.OperationType operation_type = 6;
+  dps.common.v1.Money amount = 7;
+}
+
+// CheckPaymentRequest asks for a decision without consuming limits.
+message CheckPaymentRequest {
+  PaymentIntent intent = 1;
+}
+
+// CheckPaymentResponse returns the evaluation.
+message CheckPaymentResponse {
+  Evaluation evaluation = 1;
+}
+
+// AuthorisePaymentRequest evaluates and consumes limits.
+message AuthorisePaymentRequest {
+  string idempotency_key = 1;
+  PaymentIntent intent = 2;
+  // From dps.auth.v1.AuthService/VerifyOtp with purpose STEP_UP, when a
+  // previous attempt returned DECISION_STEP_UP_REQUIRED.
+  string step_up_token = 3;
+}
+
+// AuthorisePaymentResponse returns the evaluation and, when allowed, the
+// authorisation ID.
+message AuthorisePaymentResponse {
+  Evaluation evaluation = 1;
+  // Empty unless decision is ALLOW.
+  string authorisation_id = 2;
+  google.protobuf.Timestamp authorised_at = 3;
+}
+
+// ReleasePaymentRequest returns limit usage.
+message ReleasePaymentRequest {
+  string authorisation_id = 1;
+  // Why the payment was abandoned, for audit.
+  string reason = 2;
+}
+
+// ReleasePaymentResponse confirms the release.
+message ReleasePaymentResponse {}

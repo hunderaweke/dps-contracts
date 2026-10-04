@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package dps.notification.v1;
+
+import "dps/common/v1/context.proto";
+import "google/protobuf/timestamp.proto";
+
+// NotificationService sends push, SMS and email alerts and receipts. Most
+// notifications are not requested over gRPC: notification.dispatcher and
+// notification.receipt-generator consume domain events (for example
+// ledger.operation.completed.v1) and send from templates. SendNotification
+// covers the cases no event describes, such as OTP delivery from AUTH.
+//
+// Templates live in configuration and change through maker-checker in ADM.
+// WhatsApp is not a Phase One channel.
+service NotificationService {
+  // SendNotification renders a template and queues it for delivery.
+  // Idempotent on idempotency_key.
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+
+  // GetNotification returns a notification and its delivery status.
+  rpc GetNotification(GetNotificationRequest) returns (GetNotificationResponse);
+}
+
+// DeliveryChannel is how a notification reaches the recipient.
+enum DeliveryChannel {
+  DELIVERY_CHANNEL_UNSPECIFIED = 0;
+  DELIVERY_CHANNEL_PUSH = 1;
+  DELIVERY_CHANNEL_SMS = 2;
+  DELIVERY_CHANNEL_EMAIL = 3;
+}
+
+// DeliveryStatus is where a notification is in delivery.
+enum DeliveryStatus {
+  DELIVERY_STATUS_UNSPECIFIED = 0;
+  DELIVERY_STATUS_QUEUED = 1;
+  // Handed to the SMS, email or push gateway.
+  DELIVERY_STATUS_SENT = 2;
+  // The gateway confirmed delivery to the device or mailbox.
+  DELIVERY_STATUS_DELIVERED = 3;
+  // Retries ran out or the gateway rejected it permanently.
+  DELIVERY_STATUS_FAILED = 4;
+}
+
+// Priority affects queueing only. OTPs are always HIGH.
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_NORMAL = 1;
+  PRIORITY_HIGH = 2;
+}
+
+// Recipient says where to deliver. Set customer_id to use the customer's
+// registered contacts and devices, or set destination for a raw address,
+// for example during onboarding before a customer exists.
+message Recipient {
+  string customer_id = 1;
+  // E.164 phone number, email address or push token, matching the channel.
+  string destination = 2;
+  // Language for the template, for example "om", "am" or "en". Empty uses
+  // the customer's preference.
+  string language = 3;
+}
+
+// Notification is one message to one recipient on one channel.
+message Notification {
+  string notification_id = 1;
+  Recipient recipient = 2;
+  DeliveryChannel channel = 3;
+  // Template ID, for example "receipt.transfer" or "otp.registration".
+  string template_id = 4;
+  // Template version the message was rendered from, for audit.
+  string template_version = 5;
+  DeliveryStatus status = 6;
+  // Gateway reference for the sent message.
+  string gateway_reference = 7;
+  // Reason for FAILED, from the gateway.
+  string failure_reason = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// SendNotificationRequest asks for one notification.
+message SendNotificationRequest {
+  string idempotency_key = 1;
+  dps.common.v1.RequestContext context = 2;
+  Recipient recipient = 3;
+  DeliveryChannel channel = 4;
+  string template_id = 5;
+  // Values for the template's placeholders. Never put secrets other than an
+  // OTP here, and OTP values are never stored after rendering.
+  map<string, string> variables = 6;
+  Priority priority = 7;
+}
+
+// SendNotificationResponse returns the queued notification.
+message SendNotificationResponse {
+  Notification notification = 1;
+}
+
+// GetNotificationRequest looks up one notification.
+message GetNotificationRequest {
+  string notification_id = 1;
+}
+
+// GetNotificationResponse returns the notification.
+message GetNotificationResponse {
+  Notification notification = 1;
+}

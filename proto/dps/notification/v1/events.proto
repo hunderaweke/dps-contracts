@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package dps.notification.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/notification/v1/notification.proto";
+
+// Notification events. Record key: notification_id. Rendered content is
+// never included; template_id and template_version are enough to audit it.
+
+// MessageDelivered: the gateway confirmed delivery.
+message MessageDelivered {
+  option (dps.events.v1.event) = {type: "notification.message.delivered.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Notification notification = 2;
+}
+
+// MessageFailed: retries ran out or the gateway rejected the message.
+message MessageFailed {
+  option (dps.events.v1.event) = {type: "notification.message.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Notification notification = 2;
+}

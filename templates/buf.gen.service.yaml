@@ -7,9 +7,9 @@ managed:
   override:
     - file_option: go_package_prefix
       # EDIT 1: your service's module path + /pkg/dpsapi/gen
-      value: github.com/AlelgnHailu1/<service>/pkg/dpsapi/gen
+      value: github.com/hunderaweke/<service>/pkg/dpsapi/gen
 inputs:
-  - git_repo: https://github.com/AlelgnHailu1/dps-contracts.git
+  - git_repo: https://github.com/hunderaweke/dps-contracts.git
     subdir: proto
     # EDIT 2: the contracts release to build against. The mock (cmd/mock)
     # and the real service (cmd/server) must use the same tag.

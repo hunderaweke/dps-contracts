@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package dps.onboarding.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Onboarding and KYC entities, owned by the onboarding service
+// (dps_onboarding). A person onboards once, digitally, with Fayda e-KYC; the
+// customer is created through Account Management without any account. The
+// gRPC service contract comes later; this file holds only the entities and
+// status enums the events carry.
+//
+// No full phone number and no national ID (FIN) appear here: phones are
+// masked and Fayda is referenced by verification_id only (SC-ONB-14).
+
+// ApplicationStatus is the application lifecycle.
+enum ApplicationStatus {
+  APPLICATION_STATUS_UNSPECIFIED = 0;
+  // Started after a verified OTP (UC-ONB-01).
+  APPLICATION_STATUS_DRAFT = 1;
+  APPLICATION_STATUS_DETAILS_CAPTURED = 2;
+  // All consents recorded (UC-ONB-02).
+  APPLICATION_STATUS_CONSENTED = 3;
+  APPLICATION_STATUS_KYC_PASSED = 4;
+  // Waiting for an operations officer (UC-ONB-06).
+  APPLICATION_STATUS_UNDER_REVIEW = 5;
+  // The customer exists (UC-ONB-05).
+  APPLICATION_STATUS_COMPLETED = 6;
+  APPLICATION_STATUS_REJECTED = 7;
+  // Not updated for 7 days (SC-ONB-09).
+  APPLICATION_STATUS_EXPIRED = 8;
+}
+
+// ApplicationStep is a step the applicant still has to finish.
+enum ApplicationStep {
+  APPLICATION_STEP_UNSPECIFIED = 0;
+  APPLICATION_STEP_DETAILS = 1;
+  APPLICATION_STEP_CONSENTS = 2;
+  APPLICATION_STEP_DOCUMENTS = 3;
+  APPLICATION_STEP_KYC = 4;
+  APPLICATION_STEP_SUBMIT = 5;
+}
+
+// ConsentType is a consent the applicant accepts.
+enum ConsentType {
+  CONSENT_TYPE_UNSPECIFIED = 0;
+  CONSENT_TYPE_TERMS = 1;
+  CONSENT_TYPE_DATA_PROCESSING = 2;
+  CONSENT_TYPE_FAYDA = 3;
+}
+
+// DocumentKind is the kind of an uploaded document.
+enum DocumentKind {
+  DOCUMENT_KIND_UNSPECIFIED = 0;
+  DOCUMENT_KIND_SELFIE = 1;
+  DOCUMENT_KIND_SIGNATURE = 2;
+}
+
+// Application is the onboarding aggregate.
+message Application {
+  string application_id = 1;
+  ApplicationStatus status = 2;
+  // All but the last 4 digits masked, for example "+251*****0002".
+  string masked_phone = 3;
+  // "en", "am" or "om".
+  string language = 4;
+  // Branch chosen by the applicant.
+  string home_branch_code = 5;
+  repeated ApplicationStep pending_steps = 6;
+  // Latest Fayda verification attempt; the FIN itself is never stored.
+  string kyc_verification_id = 7;
+  // Set once COMPLETED.
+  string customer_id = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  // When the application expires if not updated.
+  google.protobuf.Timestamp expires_at = 11;
+}
+
+// Consent is one accepted consent.
+message Consent {
+  string consent_id = 1;
+  ConsentType type = 2;
+  // Version of the consent text the applicant saw.
+  string text_version = 3;
+  google.protobuf.Timestamp accepted_at = 4;
+}
+
+// Document is document metadata. Content is in encrypted object storage.
+message Document {
+  string document_id = 1;
+  DocumentKind kind = 2;
+  // SHA-256 of the content, hex encoded, confirmed after upload.
+  string content_sha256 = 3;
+  string content_type = 4;
+  int64 size_bytes = 5;
+  google.protobuf.Timestamp uploaded_at = 6;
+}

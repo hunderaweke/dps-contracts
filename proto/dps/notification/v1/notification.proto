@@ -40,6 +40,8 @@ enum DeliveryStatus {
   DELIVERY_STATUS_DELIVERED = 3;
   // Retries ran out or the gateway rejected it permanently.
   DELIVERY_STATUS_FAILED = 4;
+  // The customer opened the message in the in-app inbox (UC-NOT-02).
+  DELIVERY_STATUS_READ = 5;
 }
 
 // Priority affects queueing only. OTPs are always HIGH.

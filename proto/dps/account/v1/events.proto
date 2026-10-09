@@ -6,7 +6,8 @@ import "dps/account/v1/account.proto";
 import "dps/events/v1/metadata.proto";
 import "dps/events/v1/options.proto";
 
-// Account Management events. Record key: account_id.
+// Account Management events. Account events are keyed by account_id;
+// customer, catalogue and contact point events name their key.
 
 // AccountOpened: the CBS confirmed a new account.
 message AccountOpened {
@@ -23,4 +24,52 @@ message AccountStatusChanged {
   dps.events.v1.EventMetadata metadata = 1;
   Account account = 2;
   AccountStatus previous_status = 3;
+}
+
+// CustomerCreated: the customer was created in the CBS at the end of
+// onboarding, with no account yet (UC-ONB-05). Record key: customer_id.
+message CustomerCreated {
+  option (dps.events.v1.event) = {type: "account.customer.created.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Customer customer = 2;
+  // dps.onboarding.v1 application that produced the customer.
+  string application_id = 3;
+}
+
+// CustomerKycLevelChanged: a customer's KYC level changed, which changes
+// the product caps that apply. Record key: customer_id.
+message CustomerKycLevelChanged {
+  option (dps.events.v1.event) = {type: "account.customer.kyc_level_changed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Customer customer = 2;
+  KycLevel previous_kyc_level = 3;
+  // AdminOps change that authorised it, if any.
+  string change_id = 4;
+}
+
+// CatalogPublished: a new product catalogue and KYC cap version was applied
+// from an approved CONFIG change (UC-PRD-05). Record key: catalog_version.
+message CatalogPublished {
+  option (dps.events.v1.event) = {type: "account.catalog.published.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string catalog_version = 2;
+  string previous_catalog_version = 3;
+  string change_id = 4;
+}
+
+// ContactPointChanged: a customer phone or email was added, updated or
+// removed. Record key: customer_id.
+message ContactPointChanged {
+  option (dps.events.v1.event) = {type: "account.contact_point.changed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string customer_id = 2;
+  ContactPointKind kind = 3;
+  // All but the last 4 characters masked, for example "+251*****1234" or
+  // "a***@example.com". The full value is never published.
+  string masked_value = 4;
+  ContactPointChangeType change_type = 5;
 }

@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package dps.ticketing.v1;
+
+import "dps/common/v1/money.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/ticketing/v1/ticketing.proto";
+
+// TICKETING events. None carries a QR payload or signature.
+
+// EventSubmitted: a merchant submitted an event for review; it is
+// PENDING_REVIEW (UC-EVT-01). Record key: event_id.
+message EventSubmitted {
+  option (dps.events.v1.event) = {type: "ticketing.event.submitted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Event event = 2;
+}
+
+// EventPublished: an operations officer approved the event (UC-EVT-02,
+// SC-EVT-01). Record key: event_id.
+message EventPublished {
+  option (dps.events.v1.event) = {type: "ticketing.event.published.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Event event = 2;
+  // Staff ID of the moderator.
+  string moderator_id = 3;
+}
+
+// EventRejected: an operations officer rejected the event with a note
+// (SC-EVT-05). Record key: event_id.
+message EventRejected {
+  option (dps.events.v1.event) = {type: "ticketing.event.rejected.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Event event = 2;
+  // Staff ID of the moderator.
+  string moderator_id = 3;
+  // For example "missing venue permit".
+  string note = 4;
+}
+
+// TicketIssued: a paid hold produced a signed QR ticket (UC-EVT-03,
+// SC-EVT-02). One event per ticket. Record key: ticket_id.
+message TicketIssued {
+  option (dps.events.v1.event) = {type: "ticketing.ticket.issued.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Carries payment_id and hold_id.
+  Ticket ticket = 2;
+}
+
+// TicketUsed: the ticket scanned VALID at a gate and is now USED
+// (SC-EVT-03). Record key: ticket_id.
+message TicketUsed {
+  option (dps.events.v1.event) = {type: "ticketing.ticket.used.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Ticket ticket = 2;
+  string gate_id = 3;
+}
+
+// TicketScanRejected: a gate scan did not admit the holder (SC-EVT-08,
+// SC-EVT-09, SC-EVT-11). The ticket's status does not change. Record key:
+// ticket_id, or gate_id when the signature was invalid and no ticket is
+// known.
+message TicketScanRejected {
+  option (dps.events.v1.event) = {type: "ticketing.ticket.scan_rejected.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Empty when the signature was invalid.
+  string ticket_id = 2;
+  // Event the gate is admitting to.
+  string gate_event_id = 3;
+  string gate_id = 4;
+  // ALREADY_USED, WRONG_EVENT or INVALID_SIGNATURE.
+  ScanResult result = 5;
+}
+
+// RefundRequested: a customer requested a refund and a TICKET_REFUND
+// maker-checker change was submitted (UC-EVT-05). The request carries
+// ticket_id and change_id. Record key: refund_id.
+message RefundRequested {
+  option (dps.events.v1.event) = {type: "ticketing.refund.requested.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  RefundRequest refund_request = 2;
+}
+
+// RefundRejected: the checker rejected the TICKET_REFUND change. The ticket
+// stays ISSUED. Record key: refund_id.
+message RefundRejected {
+  option (dps.events.v1.event) = {type: "ticketing.refund.rejected.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Carries change_id.
+  RefundRequest refund_request = 2;
+  // Checker's comment.
+  string comment = 3;
+}
+
+// TicketRefunded: the approved refund was posted as a Ledger REFUND
+// operation, the payment is REVERSED and the ticket is REFUNDED (SC-EVT-04).
+// Record key: ticket_id.
+message TicketRefunded {
+  option (dps.events.v1.event) = {type: "ticketing.ticket.refunded.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Ticket ticket = 2;
+  string refund_id = 3;
+  // AdminOps TICKET_REFUND change that approved the refund.
+  string change_id = 4;
+  // Ledger REFUND operation.
+  string operation_id = 5;
+  // Original payment, now REVERSED.
+  string payment_id = 6;
+  dps.common.v1.Money amount = 7;
+}

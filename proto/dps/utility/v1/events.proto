@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package dps.utility.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/utility/v1/utility.proto";
+
+// UTILITY events.
+
+// BillInquired: a bill was looked up and routed to an aggregator (UC-BIL-01).
+// Record key: inquiry_id.
+message BillInquired {
+  option (dps.events.v1.event) = {type: "utility.bill.inquired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  BillInquiry inquiry = 2;
+}
+
+// BillPaymentCompleted: the biller accepted the payment and returned a
+// receipt (SC-BIL-01). Record key: bill_payment_id.
+message BillPaymentCompleted {
+  option (dps.events.v1.event) = {type: "utility.bill_payment.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  BillPayment bill_payment = 2;
+}
+
+// BillPaymentFailed: the biller or CBS rejected the payment and no debit
+// remains (SC-BIL-07). Record key: bill_payment_id.
+message BillPaymentFailed {
+  option (dps.events.v1.event) = {type: "utility.bill_payment.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  BillPayment bill_payment = 2;
+  // CBS or biller failure code.
+  string failure_code = 3;
+}
+
+// RoutingUpdated: an approved CONFIG change loaded new regional usage shares
+// for one biller; new inquiries route by them (UC-BIL-04, SC-BIL-05). One
+// event per region and biller. Record key: "<region>:<biller_code>".
+message RoutingUpdated {
+  option (dps.events.v1.event) = {type: "utility.routing.updated.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string region = 2;
+  string biller_code = 3;
+  // Month the usage data covers, "YYYY-MM".
+  string period_month = 4;
+  repeated AggregatorShare shares = 5;
+  // AdminOps CONFIG change that loaded the shares.
+  string change_id = 6;
+}

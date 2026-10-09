@@ -1,0 +1,130 @@
+syntax = "proto3";
+
+package dps.onboarding.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/onboarding/v1/onboarding.proto";
+
+// Onboarding events. Record key: application_id. No full phone number, FIN
+// or Fayda claims are published.
+
+// ApplicationStarted: a prospect started an application (UC-ONB-01).
+message ApplicationStarted {
+  option (dps.events.v1.event) = {type: "onboarding.application.started.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Application application = 2;
+}
+
+// ApplicationConsented: every consent was recorded (UC-ONB-02).
+message ApplicationConsented {
+  option (dps.events.v1.event) = {type: "onboarding.application.consented.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Application application = 2;
+  repeated Consent consents = 3;
+}
+
+// DocumentUploaded: a selfie or signature upload was confirmed by its hash
+// (UC-ONB-03).
+message DocumentUploaded {
+  option (dps.events.v1.event) = {type: "onboarding.document.uploaded.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string application_id = 2;
+  Document document = 3;
+}
+
+// KycPassed: Fayda verification passed the match rules (UC-ONB-04).
+message KycPassed {
+  option (dps.events.v1.event) = {type: "onboarding.kyc.passed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string application_id = 2;
+  string verification_id = 3;
+  // Match score, 0 to 100.
+  int32 match_score = 4;
+}
+
+// KycFlagged: Fayda verification needs manual review, and a review case was
+// opened (SC-ONB-03).
+message KycFlagged {
+  option (dps.events.v1.event) = {type: "onboarding.kyc.flagged.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string application_id = 2;
+  string verification_id = 3;
+  // Match score, 0 to 100.
+  int32 match_score = 4;
+  // Review case reason code, for example "fayda_low_match".
+  string review_reason = 5;
+}
+
+// ApplicationReturned: a reviewer sent the application back to the
+// applicant (SC-ONB-05). Application.pending_steps names what to redo.
+message ApplicationReturned {
+  option (dps.events.v1.event) = {type: "onboarding.application.returned.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Application application = 2;
+  // Staff ID of the operations officer.
+  string reviewer_id = 3;
+}
+
+// ApplicationCompleted: the customer was created, with no account yet
+// (UC-ONB-05). Application.customer_id is set.
+message ApplicationCompleted {
+  option (dps.events.v1.event) = {type: "onboarding.application.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Application application = 2;
+}
+
+// ApplicationRejected: a reviewer rejected the application (UC-ONB-06).
+message ApplicationRejected {
+  option (dps.events.v1.event) = {type: "onboarding.application.rejected.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Application application = 2;
+  // Staff ID of the operations officer.
+  string reviewer_id = 3;
+  // Rejection reason code.
+  string reason = 4;
+}
+
+// ApplicationExpired: the expiry schedule closed a stale application
+// (SC-ONB-09).
+message ApplicationExpired {
+  option (dps.events.v1.event) = {type: "onboarding.application.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Application application = 2;
+}
+
+// DuplicateIdentity says what matched an existing customer.
+enum DuplicateIdentity {
+  DUPLICATE_IDENTITY_UNSPECIFIED = 0;
+  // The phone already belongs to a customer (SC-ONB-07).
+  DUPLICATE_IDENTITY_PHONE = 1;
+  // The Fayda identity already belongs to a customer (SC-ONB-06).
+  DUPLICATE_IDENTITY_FAYDA = 2;
+}
+
+// ApplicationBlocked: onboarding was refused with
+// "onboarding.existing_customer" because the person is already a customer.
+// Record key: application_id, or the request's idempotency key when the
+// block happened before an application was created.
+message ApplicationBlocked {
+  option (dps.events.v1.event) = {type: "onboarding.application.blocked.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Empty when blocked at start; masked_phone then identifies the attempt.
+  string application_id = 2;
+  string masked_phone = 3;
+  DuplicateIdentity duplicate_identity = 4;
+  // The customer the identity already belongs to.
+  string existing_customer_id = 5;
+  // Error code returned, "onboarding.existing_customer".
+  string error_code = 6;
+}

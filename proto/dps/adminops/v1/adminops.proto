@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package dps.adminops.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Admin Ops entities, owned by the adminops service (dps_adminops), the
+// backend of the operations console: maker-checker changes, cases and
+// reports. Approved changes are published for the owning service to apply.
+// The gRPC service contract comes later; this file holds only the entities
+// and status enums the events carry.
+
+// ChangeType is what a maker-checker change modifies.
+enum ChangeType {
+  CHANGE_TYPE_UNSPECIFIED = 0;
+  // Configuration, for example the product catalogue (UC-PRD-05).
+  CHANGE_TYPE_CONFIG = 1;
+  CHANGE_TYPE_FEE_RULE_SET = 2;
+  // For example freezing an account (SC-ADM-02).
+  CHANGE_TYPE_ACCOUNT_STATUS = 3;
+  // Completes or aborts an operation in MANUAL_REVIEW (UC-ADM-03).
+  CHANGE_TYPE_LEDGER_RESOLUTION = 4;
+  CHANGE_TYPE_MERCHANT = 5;
+  CHANGE_TYPE_TICKET_REFUND = 6;
+  // Data warehouse backfill (UC-DWH-03).
+  CHANGE_TYPE_BACKFILL = 7;
+  CHANGE_TYPE_POLICY_BUNDLE = 8;
+  CHANGE_TYPE_STAFF_ROLE = 9;
+}
+
+// ChangeStatus is the change lifecycle.
+enum ChangeStatus {
+  CHANGE_STATUS_UNSPECIFIED = 0;
+  CHANGE_STATUS_PENDING_APPROVAL = 1;
+  // The checker approved and the owning service applied it.
+  CHANGE_STATUS_APPLIED = 2;
+  CHANGE_STATUS_REJECTED = 3;
+  // Approved, but the owning service could not apply it (SC-ADM-07).
+  CHANGE_STATUS_APPLY_FAILED = 4;
+  // Not decided within 72 hours (SC-ADM-08).
+  CHANGE_STATUS_EXPIRED = 5;
+}
+
+// CaseKind is the kind of an operations case.
+enum CaseKind {
+  CASE_KIND_UNSPECIFIED = 0;
+  CASE_KIND_DISPUTE = 1;
+  CASE_KIND_COMPLAINT = 2;
+  // A ledger operation that needs manual review.
+  CASE_KIND_OPERATION_REVIEW = 3;
+  // A reconciliation exception.
+  CASE_KIND_RECON_EXCEPTION = 4;
+  CASE_KIND_FRAUD_ALERT = 5;
+}
+
+// CaseStatus is the case lifecycle.
+enum CaseStatus {
+  CASE_STATUS_UNSPECIFIED = 0;
+  CASE_STATUS_OPEN = 1;
+  CASE_STATUS_ASSIGNED = 2;
+  CASE_STATUS_ESCALATED = 3;
+  CASE_STATUS_RESOLVED = 4;
+  CASE_STATUS_CLOSED = 5;
+}
+
+// ReportFormat is a report output format.
+enum ReportFormat {
+  REPORT_FORMAT_UNSPECIFIED = 0;
+  REPORT_FORMAT_CSV = 1;
+  REPORT_FORMAT_XLSX = 2;
+  REPORT_FORMAT_PDF = 3;
+}
+
+// ReportRunStatus is the report run lifecycle.
+enum ReportRunStatus {
+  REPORT_RUN_STATUS_UNSPECIFIED = 0;
+  REPORT_RUN_STATUS_RUNNING = 1;
+  REPORT_RUN_STATUS_SUCCEEDED = 2;
+  REPORT_RUN_STATUS_FAILED = 3;
+}
+
+// Change is a maker-checker change. The payload stays in Admin Ops; only its
+// hash is carried, so events never leak configuration or personal data.
+message Change {
+  string change_id = 1;
+  ChangeType change_type = 2;
+  ChangeStatus status = 3;
+  // Staff ID of the maker.
+  string maker_id = 4;
+  // Staff ID of the checker; never equal to maker_id (SC-ADM-09).
+  string checker_id = 5;
+  // Service that applies the change, for example "fee" or
+  // "account-management".
+  string owning_service = 6;
+  // Resource the change targets, for example "account/A-100".
+  string target_resource = 7;
+  // SHA-256 of the payload, hex encoded.
+  string payload_sha256 = 8;
+  // Maker's reason.
+  string reason = 9;
+  // Checker's comment, required on rejection.
+  string checker_comment = 10;
+  google.protobuf.Timestamp submitted_at = 11;
+  google.protobuf.Timestamp decided_at = 12;
+  // submitted_at plus 72 hours.
+  google.protobuf.Timestamp expires_at = 13;
+}
+
+// Case is an operations case, for example a dispute.
+message Case {
+  string case_id = 1;
+  CaseKind kind = 2;
+  CaseStatus status = 3;
+  // What the case is about, for example a ledger operation_id or a
+  // reconciliation exception ID.
+  string source_reference = 4;
+  // Staff ID of the assignee; empty while OPEN.
+  string assignee_id = 5;
+  google.protobuf.Timestamp opened_at = 6;
+  google.protobuf.Timestamp sla_due_at = 7;
+}
+
+// ReportRun is one report execution (UC-ADM-05).
+message ReportRun {
+  string report_run_id = 1;
+  // Report from the catalogue, for example "daily-payments".
+  string report_code = 2;
+  ReportFormat format = 3;
+  ReportRunStatus status = 4;
+  // Staff ID that ran it.
+  string requested_by = 5;
+  // Number of rows in the output.
+  int64 row_count = 6;
+  // Error code when FAILED.
+  string failure_code = 7;
+  google.protobuf.Timestamp requested_at = 8;
+  google.protobuf.Timestamp completed_at = 9;
+}

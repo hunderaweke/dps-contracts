@@ -75,3 +75,15 @@ message GetFeeQuoteRequest {
 message GetFeeQuoteResponse {
   FeeQuote quote = 1;
 }
+
+// RuleSet is a published, versioned set of fee, VAT, excise and commission
+// rules.
+message RuleSet {
+  // Rule set version, for example "2026-10-01.1".
+  string version = 1;
+  // When quotes start using this version.
+  google.protobuf.Timestamp effective_from = 2;
+  // Number of fee rules in the set.
+  int32 rule_count = 3;
+  google.protobuf.Timestamp published_at = 4;
+}

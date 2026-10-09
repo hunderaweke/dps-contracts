@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package dps.dwh.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Data Warehouse entities, owned by the dwh service (dps_dwh). It consumes
+// every domain topic, conforms events into facts and dimensions by subject
+// area and loads micro-batches every 5 minutes into the Bank DWH staging
+// area. The gRPC service contract comes later; this file holds only the
+// entities and status enums the events carry.
+
+// LoadRunKind says how a load run was started.
+enum LoadRunKind {
+  LOAD_RUN_KIND_UNSPECIFIED = 0;
+  // Scheduled every 5 minutes (UC-DWH-01).
+  LOAD_RUN_KIND_MICRO_BATCH = 1;
+  // Reloads a date range after an approved change (UC-DWH-03).
+  LOAD_RUN_KIND_BACKFILL = 2;
+}
+
+// LoadRunStatus is the load run lifecycle.
+enum LoadRunStatus {
+  LOAD_RUN_STATUS_UNSPECIFIED = 0;
+  LOAD_RUN_STATUS_RUNNING = 1;
+  LOAD_RUN_STATUS_SUCCEEDED = 2;
+  // The watermark did not move (SC-DWH-07).
+  LOAD_RUN_STATUS_FAILED = 3;
+}
+
+// LoadRun is one micro-batch or backfill run for a subject area.
+message LoadRun {
+  string load_run_id = 1;
+  // Warehouse subject area, for example "payments".
+  string subject_area = 2;
+  LoadRunKind kind = 3;
+  LoadRunStatus status = 4;
+  // AdminOps BACKFILL change; empty for micro-batches.
+  string change_id = 5;
+  // Backfill range as ISO 8601 dates, both inclusive, for example
+  // "2026-10-01" to "2026-10-03". Empty for micro-batches.
+  string from_date = 6;
+  string to_date = 7;
+  int64 rows_loaded = 8;
+  // Records stored in rejected_records (SC-DWH-06).
+  int64 rows_rejected = 9;
+  google.protobuf.Timestamp started_at = 10;
+  google.protobuf.Timestamp finished_at = 11;
+}

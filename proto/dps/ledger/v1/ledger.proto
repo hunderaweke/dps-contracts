@@ -210,3 +210,76 @@ message GetOperationRequest {
 message GetOperationResponse {
   Operation operation = 1;
 }
+
+// ResolutionOutcome is how staff resolved an operation from the manual queue
+// through an approved LEDGER_RESOLUTION change (UC-ADM-03).
+enum ResolutionOutcome {
+  RESOLUTION_OUTCOME_UNSPECIFIED = 0;
+  // The rail did move the money; the operation is COMPLETED.
+  RESOLUTION_OUTCOME_COMPLETED = 1;
+  // The rail did not move the money; held funds are released and the
+  // operation is ABORTED.
+  RESOLUTION_OUTCOME_ABORTED = 2;
+}
+
+// ReconRun is one reconciliation of ledger operations against an external
+// source for a business date.
+message ReconRun {
+  string recon_run_id = 1;
+  // Source reconciled against, for example "CBS" or "ETHSWITCH_IPS".
+  string source = 2;
+  // Business date reconciled, ISO 8601 "YYYY-MM-DD".
+  string business_date = 3;
+  int64 matched_count = 4;
+  int64 unmatched_count = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp finished_at = 7;
+}
+
+// ReconException is an unmatched item from a reconciliation run, raised to a
+// case.
+message ReconException {
+  string exception_id = 1;
+  // Empty when the exception comes from a failed settlement post.
+  string recon_run_id = 2;
+  // The ledger operation, if it is known.
+  string operation_id = 3;
+  // AdminOps case opened for it.
+  string case_id = 4;
+  // Stable code, for example "MISSING_IN_LEDGER" or "AMOUNT_MISMATCH".
+  string reason_code = 5;
+  // Reference on the external side, if any.
+  string external_reference = 6;
+  dps.common.v1.Money amount = 7;
+  google.protobuf.Timestamp raised_at = 8;
+}
+
+// SettlementBatchStatus is the lifecycle of a merchant settlement batch.
+enum SettlementBatchStatus {
+  SETTLEMENT_BATCH_STATUS_UNSPECIFIED = 0;
+  SETTLEMENT_BATCH_STATUS_PENDING = 1;
+  SETTLEMENT_BATCH_STATUS_POSTED = 2;
+  SETTLEMENT_BATCH_STATUS_FAILED = 3;
+}
+
+// SettlementBatch is one merchant's T+1 settlement for a business date
+// (UC-MER-04). net = gross - fees.
+message SettlementBatch {
+  string batch_id = 1;
+  string merchant_id = 2;
+  // Business date settled, ISO 8601 "YYYY-MM-DD".
+  string business_date = 3;
+  SettlementBatchStatus status = 4;
+  // Sum of the merchant's credits for the day.
+  dps.common.v1.Money gross = 5;
+  dps.common.v1.Money fees = 6;
+  dps.common.v1.Money net = 7;
+  // Number of payments settled.
+  int32 payment_count = 8;
+  // Account credited with net.
+  string settlement_account_id = 9;
+  // The settlement posting operation.
+  string operation_id = 10;
+  // Set when POSTED.
+  google.protobuf.Timestamp posted_at = 11;
+}

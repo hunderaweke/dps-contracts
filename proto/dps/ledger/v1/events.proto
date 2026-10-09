@@ -2,11 +2,13 @@ syntax = "proto3";
 
 package dps.ledger.v1;
 
+import "dps/common/v1/money.proto";
 import "dps/events/v1/metadata.proto";
 import "dps/events/v1/options.proto";
 import "dps/ledger/v1/ledger.proto";
 
-// Ledger events. Record key: operation_id. Consumers include
+// Ledger events. Record key: operation_id, except the recon and settlement
+// events, which name their own key. Consumers include
 // account-management.balance-projector, notification.dispatcher,
 // notification.receipt-generator, audit.universal and settlement.collector.
 
@@ -43,4 +45,73 @@ message OperationOrphaned {
   Operation operation = 2;
   // True once the operation has been moved to the manual queue.
   bool moved_to_manual_queue = 3;
+}
+
+// OperationResolved: staff resolved an operation from the manual queue
+// through an approved LEDGER_RESOLUTION change (UC-ADM-03, SC-ADM-03).
+// Record key: operation_id.
+message OperationResolved {
+  option (dps.events.v1.event) = {type: "ledger.operation.resolved.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // State COMPLETED or ABORTED, matching outcome.
+  Operation operation = 2;
+  ResolutionOutcome outcome = 3;
+  // AdminOps change that authorised the resolution.
+  string change_id = 4;
+  // Reference to the stored evidence, for example a rail statement line.
+  string evidence_reference = 5;
+}
+
+// OperationCaptured: a held operation was captured in full or in part and
+// any remainder released (UC-FUE-03; SC-FUE-01: 2000.00 held, 1650.00
+// captured, 350.00 released). Record key: operation_id.
+message OperationCaptured {
+  option (dps.events.v1.event) = {type: "ledger.operation.captured.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // operation.amount is the amount originally held.
+  Operation operation = 2;
+  dps.common.v1.Money captured_amount = 3;
+  // Held amount minus captured_amount; zero on a full capture.
+  dps.common.v1.Money released_amount = 4;
+}
+
+// ReconRunCompleted: a reconciliation run finished. Record key: recon_run_id.
+message ReconRunCompleted {
+  option (dps.events.v1.event) = {type: "ledger.recon_run.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  ReconRun recon_run = 2;
+}
+
+// ReconExceptionRaised: an unmatched item was raised to a case. Record key:
+// exception_id.
+message ReconExceptionRaised {
+  option (dps.events.v1.event) = {type: "ledger.recon_exception.raised.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  ReconException recon_exception = 2;
+}
+
+// SettlementBatchPosted: a merchant settlement batch posted to the CBS
+// (SC-MER-04: gross 9000.00, fees 90.00, net 8910.00). Record key: batch_id.
+message SettlementBatchPosted {
+  option (dps.events.v1.event) = {type: "ledger.settlement_batch.posted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  SettlementBatch batch = 2;
+}
+
+// SettlementBatchFailed: the CBS rejected the settlement post and a recon
+// exception was raised (SC-MER-09). Record key: batch_id.
+message SettlementBatchFailed {
+  option (dps.events.v1.event) = {type: "ledger.settlement_batch.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  SettlementBatch batch = 2;
+  // Stable failure code from the CBS post.
+  string failure_code = 3;
+  // The ReconException raised for the failure.
+  string recon_exception_id = 4;
 }

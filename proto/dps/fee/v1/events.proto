@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package dps.fee.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/fee/v1/fee.proto";
+
+// FEE events. Each message names its record key.
+
+// QuoteIssued: a fee quote was priced and signed. Lets audit tie the
+// fee_quote_id in dps.ledger.v1.Controls to the schedule version and lines
+// that priced it. Record key: quote_id.
+message QuoteIssued {
+  option (dps.events.v1.event) = {type: "fee.quote.issued.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  FeeQuote quote = 2;
+}
+
+// RuleSetPublished: an approved FEE_RULE_SET change published a new rule set
+// version (SC-ADM-01). Record key: version.
+message RuleSetPublished {
+  option (dps.events.v1.event) = {type: "fee.rule_set.published.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  RuleSet rule_set = 2;
+  // AdminOps change that authorised the publication.
+  string change_id = 3;
+}

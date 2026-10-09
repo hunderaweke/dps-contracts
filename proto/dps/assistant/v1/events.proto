@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package dps.assistant.v1;
+
+import "dps/assistant/v1/assistant.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+
+// Oro Assistant events. No transcript, prompt or reply text is published.
+
+// ToolCallExecuted: the agent made a read-only tool call, whatever its
+// outcome (SC-ORO-12). Record key: session_id.
+message ToolCallExecuted {
+  option (dps.events.v1.event) = {type: "assistant.tool_call.executed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  ToolCall tool_call = 2;
+}
+
+// ToolCallDenied: the PDP refused a tool call, for example for another
+// customer's data (SC-ORO-09). Record key: session_id.
+message ToolCallDenied {
+  option (dps.events.v1.event) = {type: "assistant.tool_call.denied.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // outcome is TOOL_CALL_OUTCOME_DENIED.
+  ToolCall tool_call = 2;
+  // PDP denial reason code.
+  string denial_reason = 3;
+  // Policy bundle version that decided.
+  string policy_version = 4;
+}
+
+// ArticlePublished: an approved article version was embedded and is used
+// for answers (UC-ORO-05). Record key: article_id.
+message ArticlePublished {
+  option (dps.events.v1.event) = {type: "assistant.article.published.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  KnowledgeArticle article = 2;
+  // AdminOps change that approved it.
+  string change_id = 3;
+}

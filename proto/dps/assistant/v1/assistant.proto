@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package dps.assistant.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Oro Assistant entities, owned by the assistant service (dps_assistant).
+// Oro answers from the approved knowledge base and calls read-only gRPC
+// tools under the signed-in customer's identity and PDP checks. It never
+// moves money. The gRPC service contract comes later; this file holds only
+// the entities and status enums the events carry.
+//
+// Transcripts are stored masked in dps_assistant and are never published.
+
+// ToolCallOutcome is the result of a read-only tool call.
+enum ToolCallOutcome {
+  TOOL_CALL_OUTCOME_UNSPECIFIED = 0;
+  TOOL_CALL_OUTCOME_SUCCEEDED = 1;
+  // The target service returned an error or was unavailable (SC-ORO-06).
+  TOOL_CALL_OUTCOME_FAILED = 2;
+  // The PDP refused the call (SC-ORO-09).
+  TOOL_CALL_OUTCOME_DENIED = 3;
+}
+
+// ArticleStatus is the knowledge article lifecycle.
+enum ArticleStatus {
+  ARTICLE_STATUS_UNSPECIFIED = 0;
+  ARTICLE_STATUS_DRAFT = 1;
+  ARTICLE_STATUS_PENDING_APPROVAL = 2;
+  // Approved and embedded; used for answers.
+  ARTICLE_STATUS_PUBLISHED = 3;
+  ARTICLE_STATUS_RETIRED = 4;
+}
+
+// ToolCall is one read-only tool call made by the agent in a session.
+message ToolCall {
+  string session_id = 1;
+  // Message sequence number in the session.
+  int32 seq_no = 2;
+  // Call number within the message.
+  int32 call_no = 3;
+  string customer_id = 4;
+  // Agent tool name, for example "get_balance".
+  string tool_name = 5;
+  // Full gRPC method called, for example
+  // "/dps.account.v1.AccountService/GetBalance".
+  string target_rpc = 6;
+  ToolCallOutcome outcome = 7;
+  // Error code when FAILED or DENIED.
+  string error_code = 8;
+  int32 duration_ms = 9;
+  google.protobuf.Timestamp called_at = 10;
+}
+
+// KnowledgeArticle is an approved knowledge base article. Content and
+// embeddings stay in dps_assistant.
+message KnowledgeArticle {
+  string article_id = 1;
+  int32 version = 2;
+  string title = 3;
+  // "en", "am" or "om".
+  string language = 4;
+  repeated string tags = 5;
+  ArticleStatus status = 6;
+  google.protobuf.Timestamp published_at = 7;
+}

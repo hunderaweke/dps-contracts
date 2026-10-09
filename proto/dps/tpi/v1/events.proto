@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package dps.tpi.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/tpi/v1/tpi.proto";
+import "google/protobuf/timestamp.proto";
+
+// TPI events. Each message names its record key. No message body, signature
+// or key material is published; message_id points at the stored evidence.
+
+// RequestTimedOut: a rail request got no answer in time, so its outcome is
+// UNKNOWN and status queries start. Record key: correlation_id.
+message RequestTimedOut {
+  option (dps.events.v1.event) = {type: "tpi.request.timed_out.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string correlation_id = 2;
+  string rail_code = 3;
+  // Signed message evidence for the request.
+  string message_id = 4;
+  // Calling service's record, for example the payment_id.
+  string source_reference = 5;
+  // The dps.ledger.v1.Operation, for value-moving requests.
+  string operation_id = 6;
+  google.protobuf.Timestamp sent_at = 7;
+}
+
+// StatusResolved: a status query returned a final outcome for an UNKNOWN
+// request. Record key: correlation_id.
+message StatusResolved {
+  option (dps.events.v1.event) = {type: "tpi.status.resolved.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // The resolving attempt; outcome is SUCCEEDED or FAILED.
+  StatusQuery status_query = 2;
+  string source_reference = 3;
+  string operation_id = 4;
+}
+
+// WebhookRejectReason says why an inbound webhook was rejected.
+enum WebhookRejectReason {
+  WEBHOOK_REJECT_REASON_UNSPECIFIED = 0;
+  // switch_event_id was already received; acknowledged without changing
+  // state (SC-ESW-14).
+  WEBHOOK_REJECT_REASON_REPLAYED = 1;
+  // HMAC or signature check failed; TPI answered 401 (SC-ESW-15).
+  WEBHOOK_REJECT_REASON_INVALID_SIGNATURE = 2;
+}
+
+// WebhookRejected: an inbound switch webhook was rejected. Record key:
+// rail_code and switch_event_id joined as "<rail_code>:<switch_event_id>".
+message WebhookRejected {
+  option (dps.events.v1.event) = {type: "tpi.webhook.rejected.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  WebhookReceipt receipt = 2;
+  WebhookRejectReason reason = 3;
+}

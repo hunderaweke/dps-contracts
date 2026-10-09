@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package dps.fuel.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Fuel Payment entities, owned by the dps_fuel service. A purchase is paid by
+// allocate-and-scan (a Payment pre-authorization captured at the pump) or by
+// a station request to pay confirmed with PIN.
+//
+// Only the entity messages and status enums are defined here. The gRPC
+// service contract comes later.
+
+// PurchaseMode is how a fuel purchase is paid.
+enum PurchaseMode {
+  PURCHASE_MODE_UNSPECIFIED = 0;
+  // Customer holds an amount and shows a QR; the station captures the actual
+  // amount and the rest is released (UC-FUE-02, UC-FUE-03).
+  PURCHASE_MODE_ALLOCATE_AND_SCAN = 1;
+  // Station sends a request to pay; the customer confirms with PIN
+  // (UC-FUE-04, UC-FUE-05).
+  PURCHASE_MODE_REQUEST_TO_PAY = 2;
+}
+
+// PurchaseStatus is the purchase lifecycle.
+enum PurchaseStatus {
+  PURCHASE_STATUS_UNSPECIFIED = 0;
+  PURCHASE_STATUS_PENDING = 1;
+  PURCHASE_STATUS_CONFIRMED = 2;
+  PURCHASE_STATUS_EXPIRED = 3;
+}
+
+// Purchase is the fuel purchase aggregate.
+message Purchase {
+  string purchase_id = 1;
+  PurchaseMode mode = 2;
+  PurchaseStatus status = 3;
+  string customer_id = 4;
+  // For example "ST-0042".
+  string station_id = 5;
+  string provider_code = 6;
+  // Fuel product code, for example "BENZINE".
+  string product = 7;
+  // Litres dispensed in millilitres (20 litres = 20000).
+  int64 millilitres = 8;
+  // Price per litre at the time of purchase.
+  dps.common.v1.Money price_per_litre = 9;
+  // Amount paid (captured, or the request amount).
+  dps.common.v1.Money amount = 10;
+  // dps.payment.v1.Payment that paid the purchase.
+  string payment_id = 11;
+  // dps.payment.v1.PreAuthorization, for ALLOCATE_AND_SCAN.
+  string pre_authorization_id = 12;
+  // dps.payment.v1.RequestToPay, for REQUEST_TO_PAY.
+  string request_to_pay_id = 13;
+  google.protobuf.Timestamp created_at = 14;
+  // Set when CONFIRMED.
+  google.protobuf.Timestamp confirmed_at = 15;
+}

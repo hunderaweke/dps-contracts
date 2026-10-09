@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package dps.airtime.v1;
+
+import "dps/airtime/v1/airtime.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+
+// AIRTIME events. Record key: order_id. Phone numbers are masked.
+
+// OrderPlaced: a top-up order was authorised and sent for execution.
+message OrderPlaced {
+  option (dps.events.v1.event) = {type: "airtime.order.placed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Order order = 2;
+}
+
+// OrderCompleted: the operator confirmed the top-up (SC-AIR-01, SC-AIR-05).
+message OrderCompleted {
+  option (dps.events.v1.event) = {type: "airtime.order.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Order order = 2;
+}
+
+// OrderFailed: the top-up was rejected and no debit remains (SC-AIR-06).
+message OrderFailed {
+  option (dps.events.v1.event) = {type: "airtime.order.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Order order = 2;
+  // CBS or operator code, for example "invalid_subscriber".
+  string failure_code = 3;
+}
+
+// OrderOutcomeUnknown: status queries failed for 24 hours, the order is
+// UNKNOWN and a case is opened (SC-AIR-07).
+message OrderOutcomeUnknown {
+  option (dps.events.v1.event) = {type: "airtime.order.outcome_unknown.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Order order = 2;
+  // Manual case opened for the order. Empty until the case is opened.
+  string case_id = 3;
+}

@@ -4,8 +4,10 @@ package dps.auth.v1;
 
 import "dps/auth/v1/auth.proto";
 import "dps/auth/v1/policy.proto";
+import "dps/common/v1/money.proto";
 import "dps/events/v1/metadata.proto";
 import "dps/events/v1/options.proto";
+import "google/protobuf/timestamp.proto";
 
 // AUTH events. None carries a PIN, OTP, token or credential.
 
@@ -43,4 +45,206 @@ message PaymentDecided {
   string authorisation_id = 2;
   PaymentIntent intent = 3;
   Evaluation evaluation = 4;
+}
+
+// OtpSent: an OTP challenge was issued. Record key: challenge_id.
+message OtpSent {
+  option (dps.events.v1.event) = {type: "auth.otp.sent.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string challenge_id = 2;
+  // Empty during registration, before the customer is known.
+  string customer_id = 3;
+  OtpPurpose purpose = 4;
+  OtpDelivery delivery = 5;
+  // Destination with all but the last 4 characters masked, for example
+  // "+251*****1234". The full destination is never published.
+  string masked_destination = 6;
+  google.protobuf.Timestamp expires_at = 7;
+}
+
+// OtpVerified: an OTP matched its challenge. Record key: challenge_id. The
+// verification token is never published.
+message OtpVerified {
+  option (dps.events.v1.event) = {type: "auth.otp.verified.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string challenge_id = 2;
+  string customer_id = 3;
+  OtpPurpose purpose = 4;
+}
+
+// OtpFailed: a submitted OTP did not match, or the challenge had expired.
+// Record key: challenge_id.
+message OtpFailed {
+  option (dps.events.v1.event) = {type: "auth.otp.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string challenge_id = 2;
+  string customer_id = 3;
+  OtpPurpose purpose = 4;
+  int32 attempts_remaining = 5;
+  // True when this failure locked the challenge.
+  bool locked = 6;
+}
+
+// SignInFailureReason says why a sign-in was refused.
+enum SignInFailureReason {
+  SIGN_IN_FAILURE_REASON_UNSPECIFIED = 0;
+  SIGN_IN_FAILURE_REASON_WRONG_CREDENTIAL = 1;
+  SIGN_IN_FAILURE_REASON_DEVICE_NOT_REGISTERED = 2;
+  SIGN_IN_FAILURE_REASON_BIOMETRIC_INVALID = 3;
+  SIGN_IN_FAILURE_REASON_CUSTOMER_LOCKED = 4;
+}
+
+// SignInFailed: a sign-in was refused. Record key: customer_id.
+message SignInFailed {
+  option (dps.events.v1.event) = {type: "auth.sign_in.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string customer_id = 2;
+  string device_id = 3;
+  CredentialType credential_type = 4;
+  SignInFailureReason reason = 5;
+  int32 attempts_remaining = 6;
+  // True when this failure locked the customer out.
+  bool locked = 7;
+}
+
+// SessionRevokeReason says why a session ended early.
+enum SessionRevokeReason {
+  SESSION_REVOKE_REASON_UNSPECIFIED = 0;
+  SESSION_REVOKE_REASON_SIGNED_OUT = 1;
+  SESSION_REVOKE_REASON_DEVICE_REPLACED = 2;
+  SESSION_REVOKE_REASON_STAFF_ACTION = 3;
+  SESSION_REVOKE_REASON_SUSPECTED_FRAUD = 4;
+}
+
+// SessionRevoked: a session ended and its tokens were blocklisted. Record
+// key: session_id.
+message SessionRevoked {
+  option (dps.events.v1.event) = {type: "auth.session.revoked.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string session_id = 2;
+  string customer_id = 3;
+  string device_id = 4;
+  SessionRevokeReason reason = 5;
+}
+
+// PinChangeReason says why a transaction PIN was written.
+enum PinChangeReason {
+  PIN_CHANGE_REASON_UNSPECIFIED = 0;
+  // First PIN, set after an OTP.
+  PIN_CHANGE_REASON_SET = 1;
+  // Changed by the customer with the current PIN (SC-ACC-06).
+  PIN_CHANGE_REASON_CHANGED = 2;
+  // Reset after an OTP with purpose PIN_RESET.
+  PIN_CHANGE_REASON_RESET = 3;
+}
+
+// PinChanged: a new transaction PIN hash was stored (UC-ACC-03). No PIN
+// material is published. Record key: subject_id.
+message PinChanged {
+  option (dps.events.v1.event) = {type: "auth.pin.changed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // AUTH identity root.
+  string subject_id = 2;
+  // Account Management customer ID; empty for staff and merchant users.
+  string customer_id = 3;
+  string device_id = 4;
+  PinChangeReason reason = 5;
+}
+
+// CredentialLocked: repeated wrong credentials locked a credential. Three
+// wrong PINs lock it for 30 minutes (SC-ACC-10). Record key: subject_id.
+message CredentialLocked {
+  option (dps.events.v1.event) = {type: "auth.credential.locked.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string subject_id = 2;
+  string customer_id = 3;
+  CredentialType credential_type = 4;
+  // Consecutive failures that caused the lock.
+  int32 failed_attempts = 5;
+  google.protobuf.Timestamp locked_until = 6;
+}
+
+// TokenFamilyRevokeReason says why a refresh token family was revoked.
+enum TokenFamilyRevokeReason {
+  TOKEN_FAMILY_REVOKE_REASON_UNSPECIFIED = 0;
+  // A rotated refresh token was presented again (SC-ACC-11).
+  TOKEN_FAMILY_REVOKE_REASON_REUSE_DETECTED = 1;
+  // A new device was bound (SC-ACC-13).
+  TOKEN_FAMILY_REVOKE_REASON_DEVICE_REPLACED = 2;
+  TOKEN_FAMILY_REVOKE_REASON_SIGNED_OUT = 3;
+}
+
+// TokenFamilyRevoked: every refresh token in a family was revoked and its
+// sessions ended. Record key: family_id.
+message TokenFamilyRevoked {
+  option (dps.events.v1.event) = {type: "auth.token_family.revoked.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string family_id = 2;
+  string session_id = 3;
+  string subject_id = 4;
+  string device_id = 5;
+  TokenFamilyRevokeReason reason = 6;
+}
+
+// PaymentReleased: limit usage consumed by AuthorisePayment was given back,
+// through PolicyService.ReleasePayment or after ledger.operation.aborted.v1.
+// Record key: authorisation_id.
+message PaymentReleased {
+  option (dps.events.v1.event) = {type: "auth.payment.released.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string authorisation_id = 2;
+  string customer_id = 3;
+  // Amount returned to the limits.
+  dps.common.v1.Money amount = 4;
+  // From ReleasePaymentRequest.reason, or "ledger.operation_aborted".
+  string reason = 5;
+  // Aborted ledger operation; empty when released before one started.
+  string operation_id = 6;
+}
+
+// PolicyBundleActivated: a policy bundle version became the active one for
+// every decision (SC-ACC-14). Record key: version.
+message PolicyBundleActivated {
+  option (dps.events.v1.event) = {type: "auth.policy_bundle.activated.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string version = 2;
+  string previous_version = 3;
+  // AdminOps POLICY_BUNDLE change that approved it.
+  string change_id = 4;
+  // SHA-256 of the bundle, hex encoded.
+  string bundle_sha256 = 5;
+}
+
+// StaffRoleGranted: a staff role was assigned through an approved change.
+// Record key: subject_id.
+message StaffRoleGranted {
+  option (dps.events.v1.event) = {type: "auth.staff_role.granted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string subject_id = 2;
+  string role_code = 3;
+  // AdminOps STAFF_ROLE change that authorised it.
+  string change_id = 4;
+}
+
+// StaffRoleRevoked: a staff role was removed through an approved change.
+// Record key: subject_id.
+message StaffRoleRevoked {
+  option (dps.events.v1.event) = {type: "auth.staff_role.revoked.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  string subject_id = 2;
+  string role_code = 3;
+  // AdminOps STAFF_ROLE change that authorised it.
+  string change_id = 4;
 }

@@ -1,0 +1,256 @@
+syntax = "proto3";
+
+package dps.payment.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Payment Request (RTP) entities, owned by the dps_payment service: payments
+// (on-us, other-bank, wallet, ETQR, merchant ID, Central Billing, checkout),
+// beneficiaries, two-way requests to pay, pre-authorizations for
+// allocate-and-scan, QR codes and merchants. Money moves only through Ledger
+// operations, linked here by operation_id.
+//
+// Only the entity messages and status enums are defined here. The gRPC
+// service contract comes later.
+
+// PaymentType is the kind of payment and the rail it runs on.
+enum PaymentType {
+  PAYMENT_TYPE_UNSPECIFIED = 0;
+  // To another Oromia Bank account (UC-A2A-01).
+  PAYMENT_TYPE_ON_US_TRANSFER = 1;
+  // To another bank over EthSwitch IPS (UC-A2A-02).
+  PAYMENT_TYPE_OTHER_BANK_TRANSFER = 2;
+  // To Telebirr, M-Pesa or OroDigital (UC-A2A-03).
+  PAYMENT_TYPE_WALLET_TRANSFER = 3;
+  // Scanned static or dynamic ETQR (UC-ESW-01).
+  PAYMENT_TYPE_ETQR = 4;
+  // To a merchant by merchant ID (UC-MER-01).
+  PAYMENT_TYPE_MERCHANT_ID = 5;
+  // EthSwitch Central Billing biller (UC-ESW-04).
+  PAYMENT_TYPE_CENTRAL_BILLING = 6;
+  // Biller checkout paid with a single-use token.
+  PAYMENT_TYPE_CHECKOUT = 7;
+  // Payment of an accepted incoming request to pay (UC-ESW-03).
+  PAYMENT_TYPE_REQUEST_TO_PAY = 8;
+  // Capture of a held pre-authorization (UC-FUE-03).
+  PAYMENT_TYPE_PRE_AUTH_CAPTURE = 9;
+}
+
+// PaymentStatus is the payment lifecycle.
+enum PaymentStatus {
+  PAYMENT_STATUS_UNSPECIFIED = 0;
+  // Submitted; the rail has not answered yet.
+  PAYMENT_STATUS_PROCESSING = 1;
+  PAYMENT_STATUS_COMPLETED = 2;
+  // The rail returned a definite failure; no debit remains.
+  PAYMENT_STATUS_FAILED = 3;
+  // The rail outcome is not known; resolved by status query or manual review.
+  PAYMENT_STATUS_UNKNOWN = 4;
+  // A completed payment was reversed by a Ledger REFUND operation.
+  PAYMENT_STATUS_REVERSED = 5;
+}
+
+// Counterparty is who receives the payment. Only the fields that apply to
+// the payment type are set. Account numbers, names and phones are masked.
+message Counterparty {
+  // Bank or wallet code from the EthSwitch participant directory.
+  string bank_code = 1;
+  // For example "1000****88".
+  string masked_account_number = 2;
+  // As returned by name inquiry, for example "ABEBE K***".
+  string masked_name = 3;
+  // For example "+251*****0003".
+  string masked_phone = 4;
+  string merchant_id = 5;
+  // Central Billing or checkout biller code.
+  string biller_code = 6;
+  // Bill or customer reference at the biller.
+  string bill_reference = 7;
+}
+
+// Payment is the payment aggregate.
+message Payment {
+  string payment_id = 1;
+  PaymentType payment_type = 2;
+  PaymentStatus status = 3;
+  string customer_id = 4;
+  // Platform account the money leaves.
+  string debit_account_id = 5;
+  Counterparty counterparty = 6;
+  // Principal amount, excluding fees.
+  dps.common.v1.Money amount = 7;
+  // Sum of the fee lines from the fee quote.
+  dps.common.v1.Money fee_total = 8;
+  // dps.ledger.v1.Operation that moves the money.
+  string operation_id = 9;
+  // dps.fee.v1.FeeQuote that priced the payment.
+  string fee_quote_id = 10;
+  // From dps.auth.v1 policy authorisation.
+  string policy_authorisation_id = 11;
+  // Set when the payment pays a request to pay.
+  string request_to_pay_id = 12;
+  // Set when the payment captures a pre-authorization.
+  string pre_authorization_id = 13;
+  // Set when the payment pays a QR code.
+  string qr_id = 14;
+  // Reference from the rail, set on completion.
+  string external_reference = 15;
+  // Stable failure code when FAILED, for example
+  // "tpi.creditor_account_closed".
+  string failure_code = 16;
+  google.protobuf.Timestamp created_at = 17;
+  google.protobuf.Timestamp updated_at = 18;
+}
+
+// BeneficiaryType is where a saved beneficiary is paid.
+enum BeneficiaryType {
+  BENEFICIARY_TYPE_UNSPECIFIED = 0;
+  BENEFICIARY_TYPE_ON_US_ACCOUNT = 1;
+  BENEFICIARY_TYPE_OTHER_BANK_ACCOUNT = 2;
+  BENEFICIARY_TYPE_WALLET = 3;
+}
+
+// Beneficiary is a customer's saved payee (UC-A2A-04).
+message Beneficiary {
+  string beneficiary_id = 1;
+  string customer_id = 2;
+  BeneficiaryType type = 3;
+  // Customer-chosen label, for example "Mother".
+  string nickname = 4;
+  string bank_code = 5;
+  string masked_account_number = 6;
+  string masked_name = 7;
+  // For wallet beneficiaries.
+  string masked_phone = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// RequestToPayDirection says whether the customer sent or received a
+// request to pay.
+enum RequestToPayDirection {
+  REQUEST_TO_PAY_DIRECTION_UNSPECIFIED = 0;
+  // Received from another bank or a merchant; the customer is the payer.
+  REQUEST_TO_PAY_DIRECTION_INCOMING = 1;
+  // Sent by the customer or a merchant user; the counterparty is the payer.
+  REQUEST_TO_PAY_DIRECTION_OUTGOING = 2;
+}
+
+// RequestToPayStatus is the request to pay lifecycle. No reminders are sent.
+enum RequestToPayStatus {
+  REQUEST_TO_PAY_STATUS_UNSPECIFIED = 0;
+  REQUEST_TO_PAY_STATUS_PENDING = 1;
+  REQUEST_TO_PAY_STATUS_PAID = 2;
+  REQUEST_TO_PAY_STATUS_DECLINED = 3;
+  // No answer before expires_at (the Bank default unless the request set one).
+  REQUEST_TO_PAY_STATUS_EXPIRED = 4;
+}
+
+// RequestToPay is an incoming or outgoing request to pay.
+message RequestToPay {
+  string request_to_pay_id = 1;
+  RequestToPayDirection direction = 2;
+  RequestToPayStatus status = 3;
+  // The platform customer on this side of the request, if any.
+  string customer_id = 4;
+  // Set when a merchant sent or receives the request.
+  string merchant_id = 5;
+  // The other party's bank or wallet code, for requests over EthSwitch.
+  string counterparty_bank_code = 6;
+  // The other party's alias, masked, for example "+251*****0004".
+  string masked_counterparty_alias = 7;
+  string counterparty_display_name = 8;
+  dps.common.v1.Money amount = 9;
+  // Payer-facing reference or narration.
+  string reference = 10;
+  // Set once PAID.
+  string payment_id = 11;
+  google.protobuf.Timestamp expires_at = 12;
+  google.protobuf.Timestamp created_at = 13;
+}
+
+// PreAuthorizationStatus is the hold lifecycle for allocate-and-scan.
+enum PreAuthorizationStatus {
+  PRE_AUTHORIZATION_STATUS_UNSPECIFIED = 0;
+  PRE_AUTHORIZATION_STATUS_HELD = 1;
+  PRE_AUTHORIZATION_STATUS_CAPTURED = 2;
+  PRE_AUTHORIZATION_STATUS_RELEASED = 3;
+  PRE_AUTHORIZATION_STATUS_EXPIRED = 4;
+}
+
+// PreAuthorization is an amount held for a later capture by a merchant, for
+// example a fuel allocation (UC-FUE-02, UC-FUE-03).
+message PreAuthorization {
+  string pre_authorization_id = 1;
+  PreAuthorizationStatus status = 2;
+  string customer_id = 3;
+  string debit_account_id = 4;
+  // Set once a merchant captures it.
+  string merchant_id = 5;
+  // Amount held.
+  dps.common.v1.Money held_amount = 6;
+  // Amount captured; zero until captured.
+  dps.common.v1.Money captured_amount = 7;
+  // The held dps.ledger.v1.Operation.
+  string operation_id = 8;
+  // The capture payment, set once captured.
+  string payment_id = 9;
+  string fee_quote_id = 10;
+  string policy_authorisation_id = 11;
+  google.protobuf.Timestamp expires_at = 12;
+  google.protobuf.Timestamp created_at = 13;
+}
+
+// QrCodeType says whether a QR carries a fixed amount.
+enum QrCodeType {
+  QR_CODE_TYPE_UNSPECIFIED = 0;
+  // Reusable merchant QR; the payer enters the amount.
+  QR_CODE_TYPE_STATIC = 1;
+  // Single-use QR with an amount and a short expiry.
+  QR_CODE_TYPE_DYNAMIC = 2;
+}
+
+// QrCodeStatus is the QR lifecycle. Static QRs stay ACTIVE.
+enum QrCodeStatus {
+  QR_CODE_STATUS_UNSPECIFIED = 0;
+  QR_CODE_STATUS_ACTIVE = 1;
+  QR_CODE_STATUS_USED = 2;
+  QR_CODE_STATUS_EXPIRED = 3;
+}
+
+// QrCode is a static or dynamic ETQR code for a merchant.
+message QrCode {
+  string qr_id = 1;
+  QrCodeType type = 2;
+  QrCodeStatus status = 3;
+  string merchant_id = 4;
+  // Set for dynamic QRs.
+  dps.common.v1.Money amount = 5;
+  // Merchant reference for dynamic QRs.
+  string reference = 6;
+  // Set for dynamic QRs.
+  google.protobuf.Timestamp expires_at = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// MerchantStatus is whether a merchant may receive payments.
+enum MerchantStatus {
+  MERCHANT_STATUS_UNSPECIFIED = 0;
+  MERCHANT_STATUS_ACTIVE = 1;
+  MERCHANT_STATUS_SUSPENDED = 2;
+}
+
+// Merchant is a registered merchant, onboarded through a MERCHANT change.
+message Merchant {
+  // For example "OBM-1001".
+  string merchant_id = 1;
+  string display_name = 2;
+  MerchantStatus status = 3;
+  // Merchant category, for example the fuel category.
+  string category_code = 4;
+  // Account credited by T+1 settlement.
+  string settlement_account_id = 5;
+  // Static QR created at onboarding.
+  string static_qr_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+}

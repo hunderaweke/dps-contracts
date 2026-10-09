@@ -9,11 +9,14 @@ import "google/protobuf/timestamp.proto";
 // through the producing service's transactional outbox. Rules, in short (the
 // full set is in docs/events.md):
 //
-//   - One message type per topic. The topic name is the event type,
-//     domain.entity.event.vN, declared on the message with the
-//     (dps.events.v1.event) option.
-//   - The record value is that message in Schema Registry wire format,
-//     subject "<topic>-value".
+//   - The event type is domain.entity.event.vN, declared on the message with
+//     the (dps.events.v1.event) option and copied into event_type below.
+//   - Each domain publishes every event type on one topic, "<domain>.events",
+//     where domain is the first segment of the event type. The record header
+//     x-dps-event-type carries the event type, so consumers can route without
+//     decoding.
+//   - The record value is the message in Schema Registry wire format, subject
+//     "<topic>-<message full name>" (TopicRecordNameStrategy).
 //   - The record key is EventMetadata.aggregate_id, so every event for one
 //     aggregate stays ordered on one partition.
 //   - Every event message carries EventMetadata as field 1.
@@ -32,8 +35,8 @@ message EventMetadata {
   // Unique per event, set when the outbox row is written. Consumers dedupe on
   // it, because delivery is at least once.
   string event_id = 1;
-  // Same as the topic and the message's (dps.events.v1.event).type, for
-  // example "ledger.operation.completed.v1".
+  // The message's (dps.events.v1.event).type and the x-dps-event-type header,
+  // for example "ledger.operation.completed.v1".
   string event_type = 2;
   // ID of the entity the event is about. Used as the record key.
   string aggregate_id = 3;
@@ -51,4 +54,7 @@ message EventMetadata {
   string causation_id = 9;
   // Who caused the change. Empty for system-initiated events.
   dps.common.v1.Actor actor = 10;
+  // Copied from the RequestContext of the call that caused the change.
+  // Unspecified for system-initiated events.
+  dps.common.v1.Channel channel = 11;
 }

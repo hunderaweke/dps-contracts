@@ -4,10 +4,10 @@ package dps.events.v1;
 
 import "google/protobuf/descriptor.proto";
 
-// EventOptions binds an event message to its Redpanda topic.
+// EventOptions names an event message.
 message EventOptions {
-  // domain.entity.event.vN. Also the topic name and the Schema Registry
-  // subject prefix ("<type>-value").
+  // domain.entity.event.vN. The message is published on "<domain>.events"
+  // with this value in the x-dps-event-type record header.
   string type = 1;
 }
 
@@ -21,6 +21,6 @@ extend google.protobuf.MessageOptions {
   //   }
   //
   // Producers and consumers read it through protoreflect, so no service
-  // hard-codes topic names.
+  // hard-codes event types or topic names.
   EventOptions event = 51000;
 }

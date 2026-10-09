@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package dps.fuel.v1;
+
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/fuel/v1/fuel.proto";
+
+// FUEL events. Record key: purchase_id.
+
+// PurchaseConfirmed: the purchase was paid, by capture or by an accepted
+// request to pay (SC-FUE-01, SC-FUE-02). Record key: purchase_id.
+message PurchaseConfirmed {
+  option (dps.events.v1.event) = {type: "fuel.purchase.confirmed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Purchase purchase = 2;
+}
+
+// PurchaseExpiryReason says why a purchase ended without payment.
+enum PurchaseExpiryReason {
+  PURCHASE_EXPIRY_REASON_UNSPECIFIED = 0;
+  // The customer declined the station request (SC-FUE-05).
+  PURCHASE_EXPIRY_REASON_REQUEST_DECLINED = 1;
+  // The station request got no answer before expiry (SC-FUE-08).
+  PURCHASE_EXPIRY_REASON_REQUEST_EXPIRED = 2;
+  // The allocation passed its expiry uncaptured (SC-FUE-06).
+  PURCHASE_EXPIRY_REASON_ALLOCATION_EXPIRED = 3;
+  // The customer cancelled an unused allocation (SC-FUE-04).
+  PURCHASE_EXPIRY_REASON_ALLOCATION_CANCELLED = 4;
+}
+
+// PurchaseExpired: the purchase ended without payment; no money moved or the
+// hold was released. Record key: purchase_id.
+message PurchaseExpired {
+  option (dps.events.v1.event) = {type: "fuel.purchase.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Purchase purchase = 2;
+  PurchaseExpiryReason reason = 3;
+}

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package dps.airtime.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Airtime Service entities, owned by the airtime service (dps_airtime).
+// Top-up only, no bundles, for Ethio Telecom and Safaricom; the CBS
+// middleware call is executed by Ledger. The gRPC service contract comes
+// later; this file holds only the entities and status enums the events
+// carry.
+
+// Operator is a telecom operator.
+enum Operator {
+  OPERATOR_UNSPECIFIED = 0;
+  OPERATOR_ETHIO_TELECOM = 1;
+  OPERATOR_SAFARICOM = 2;
+}
+
+// OrderStatus is an airtime order's lifecycle.
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PLACED = 1;
+  ORDER_STATUS_COMPLETED = 2;
+  ORDER_STATUS_FAILED = 3;
+  // Status queries failed for 24 hours; a case is opened (SC-AIR-07).
+  ORDER_STATUS_UNKNOWN = 4;
+}
+
+// Order is the airtime order aggregate.
+message Order {
+  string order_id = 1;
+  string customer_id = 2;
+  Operator operator = 3;
+  // Recipient number with all but the last 4 digits masked, for example
+  // "+251*****0005". The full number is never published.
+  string masked_msisdn = 4;
+  // True when the customer topped up their own number (UC-AIR-01).
+  bool own_number = 5;
+  dps.common.v1.Money amount = 6;
+  OrderStatus status = 7;
+  // Ledger operation that runs the CBS top-up call.
+  string operation_id = 8;
+  // Operator reference, set once COMPLETED.
+  string operator_reference = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}

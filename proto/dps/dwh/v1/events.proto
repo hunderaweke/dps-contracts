@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package dps.dwh.v1;
+
+import "dps/dwh/v1/dwh.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+
+// Data Warehouse events. Record key: load_run_id.
+
+// BackfillCompleted: an approved backfill reloaded its date range without
+// duplicates (UC-DWH-03, SC-DWH-04).
+message BackfillCompleted {
+  option (dps.events.v1.event) = {type: "dwh.backfill.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // kind is LOAD_RUN_KIND_BACKFILL; change_id, from_date, to_date and
+  // rows_loaded are set.
+  LoadRun load_run = 2;
+}
+
+// LoadRunFailed: a load run failed and the watermark did not move
+// (SC-DWH-07).
+message LoadRunFailed {
+  option (dps.events.v1.event) = {type: "dwh.load_run.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  LoadRun load_run = 2;
+  // Topic and partition the failure happened on.
+  string topic = 3;
+  int32 partition = 4;
+  // Error code, for example "dwh.staging_unavailable".
+  string error_code = 5;
+  string error_message = 6;
+  // Records rejected in this run.
+  int64 rejected_count = 7;
+  // How far the partition's watermark is behind, in seconds.
+  int64 lag_seconds = 8;
+}

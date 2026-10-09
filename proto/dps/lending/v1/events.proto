@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package dps.lending.v1;
+
+import "dps/common/v1/money.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/lending/v1/lending.proto";
+
+// LENDING (MILKII) events. None carries raw scoring inputs.
+
+// ConsentGranted: a customer gave credit assessment or auto-debit consent.
+// Record key: consent_id.
+message ConsentGranted {
+  option (dps.events.v1.event) = {type: "lending.consent.granted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Consent consent = 2;
+}
+
+// ConsentRevoked: a customer withdrew a consent. Record key: consent_id.
+message ConsentRevoked {
+  option (dps.events.v1.event) = {type: "lending.consent.revoked.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Consent consent = 2;
+}
+
+// AssessmentCompleted: in-house scoring decided eligibility (UC-LND-01,
+// SC-LND-06). Record key: assessment_id.
+message AssessmentCompleted {
+  option (dps.events.v1.event) = {type: "lending.assessment.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  CreditAssessment assessment = 2;
+}
+
+// OfferPresented: an offer was made for an application (UC-LND-02). Record
+// key: offer_id.
+message OfferPresented {
+  option (dps.events.v1.event) = {type: "lending.offer.presented.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Offer offer = 2;
+}
+
+// OfferAccepted: the customer accepted the offer (UC-LND-03). Record key:
+// offer_id.
+message OfferAccepted {
+  option (dps.events.v1.event) = {type: "lending.offer.accepted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Offer offer = 2;
+}
+
+// OfferExpired: the offer lapsed unaccepted. Record key: offer_id.
+message OfferExpired {
+  option (dps.events.v1.event) = {type: "lending.offer.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Offer offer = 2;
+}
+
+// LoanDisbursed: the principal was credited and the loan is ACTIVE with a
+// schedule (SC-LND-01). The loan carries disbursement_operation_id. Record
+// key: loan_id.
+message LoanDisbursed {
+  option (dps.events.v1.event) = {type: "lending.loan.disbursed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Loan loan = 2;
+  ScheduleSummary schedule = 3;
+}
+
+// LoanDisbursementFailed: the CBS rejected the disbursement credit; the loan
+// is DISBURSEMENT_FAILED and its schedule voided (SC-LND-08). Record key:
+// loan_id.
+message LoanDisbursementFailed {
+  option (dps.events.v1.event) = {type: "lending.loan.disbursement_failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Loan loan = 2;
+  // CBS or Ledger failure code.
+  string failure_code = 3;
+}
+
+// LoanOverdue: an installment was not collected by its due date and the loan
+// is OVERDUE (SC-LND-09). Record key: loan_id.
+message LoanOverdue {
+  option (dps.events.v1.event) = {type: "lending.loan.overdue.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Loan loan = 2;
+  int32 installment_no = 3;
+  // Unpaid amount of that installment.
+  dps.common.v1.Money overdue_amount = 4;
+}
+
+// LoanClosed: the loan was repaid in full (SC-LND-05). Record key: loan_id.
+message LoanClosed {
+  option (dps.events.v1.event) = {type: "lending.loan.closed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Loan loan = 2;
+}
+
+// RepaymentReceived: a repayment was posted and allocated to installments
+// (SC-LND-02, SC-LND-03). Record key: repayment_id.
+message RepaymentReceived {
+  option (dps.events.v1.event) = {type: "lending.repayment.received.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Carries loan_id, amount, operation_id, source and allocations.
+  Repayment repayment = 2;
+}

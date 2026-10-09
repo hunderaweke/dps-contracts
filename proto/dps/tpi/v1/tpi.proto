@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package dps.tpi.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// Third-Party Integration entities, owned by the dps_tpi service. TPI is the
+// governed rail to EthSwitch (ETQR, request to pay, Central Billing) and the
+// gateway for non-posting partner calls through the CBS middleware. It signs
+// and verifies messages, keeps evidence and resolves UNKNOWN outcomes by
+// status query.
+//
+// Only the entity messages and enums are defined here. The gRPC service
+// contract comes later.
+
+// RailOutcome is what TPI knows about a rail request.
+enum RailOutcome {
+  RAIL_OUTCOME_UNSPECIFIED = 0;
+  RAIL_OUTCOME_SUCCEEDED = 1;
+  RAIL_OUTCOME_FAILED = 2;
+  // Timed out or ambiguous; resolved by status query.
+  RAIL_OUTCOME_UNKNOWN = 3;
+}
+
+// StatusQuery is one status query attempt for an UNKNOWN outcome.
+message StatusQuery {
+  // Correlation ID of the original rail request.
+  string correlation_id = 1;
+  // 1 for the first attempt.
+  int32 attempt_no = 2;
+  // EthSwitch rail, for example "IPS" or "ETQR".
+  string rail_code = 3;
+  RailOutcome outcome = 4;
+  // Signed message evidence for the query.
+  string message_id = 5;
+  // Rail reference, when the rail returned one.
+  string external_reference = 6;
+  // Rail failure code when outcome is FAILED.
+  string failure_code = 7;
+  google.protobuf.Timestamp queried_at = 8;
+}
+
+// WebhookReceipt is an inbound switch webhook, kept for replay protection.
+message WebhookReceipt {
+  string rail_code = 1;
+  // Event ID assigned by EthSwitch; unique per rail.
+  string switch_event_id = 2;
+  // Signed message evidence for the webhook.
+  string message_id = 3;
+  google.protobuf.Timestamp received_at = 4;
+}

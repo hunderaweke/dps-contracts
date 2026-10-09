@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package dps.ticketing.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Event Ticketing entities, owned by the ticketing service (dps_ticketing):
+// merchant events, moderation, holds, signed QR tickets, gate validation and
+// refunds. The gRPC service contract comes later; this file holds only the
+// entities and status enums the events carry.
+
+// EventStatus is an event's moderation lifecycle.
+enum EventStatus {
+  EVENT_STATUS_UNSPECIFIED = 0;
+  EVENT_STATUS_DRAFT = 1;
+  EVENT_STATUS_PENDING_REVIEW = 2;
+  EVENT_STATUS_PUBLISHED = 3;
+  EVENT_STATUS_REJECTED = 4;
+}
+
+// TicketStatus is a ticket's lifecycle. Every change is recorded with
+// actor, reason and gate.
+enum TicketStatus {
+  TICKET_STATUS_UNSPECIFIED = 0;
+  TICKET_STATUS_ISSUED = 1;
+  TICKET_STATUS_USED = 2;
+  TICKET_STATUS_REFUNDED = 3;
+}
+
+// RefundRequestStatus is a ticket refund request's lifecycle.
+enum RefundRequestStatus {
+  REFUND_REQUEST_STATUS_UNSPECIFIED = 0;
+  REFUND_REQUEST_STATUS_REQUESTED = 1;
+  REFUND_REQUEST_STATUS_APPROVED = 2;
+  REFUND_REQUEST_STATUS_REJECTED = 3;
+  REFUND_REQUEST_STATUS_COMPLETED = 4;
+}
+
+// ScanResult is the gate's verdict on a scanned QR ticket (UC-EVT-04).
+enum ScanResult {
+  SCAN_RESULT_UNSPECIFIED = 0;
+  SCAN_RESULT_VALID = 1;
+  SCAN_RESULT_ALREADY_USED = 2;
+  SCAN_RESULT_WRONG_EVENT = 3;
+  SCAN_RESULT_INVALID_SIGNATURE = 4;
+}
+
+// TicketTier is a priced tier of an event with its inventory.
+message TicketTier {
+  string tier_id = 1;
+  // For example "Regular".
+  string name = 2;
+  dps.common.v1.Money price = 3;
+  int32 capacity = 4;
+  int32 sold = 5;
+  int32 held = 6;
+}
+
+// Event is the event aggregate.
+message Event {
+  string event_id = 1;
+  string merchant_id = 2;
+  string category_code = 3;
+  string title = 4;
+  string venue = 5;
+  google.protobuf.Timestamp starts_at = 6;
+  google.protobuf.Timestamp ends_at = 7;
+  EventStatus status = 8;
+  repeated TicketTier tiers = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+// Ticket is a signed QR ticket. The QR payload and its signature are never
+// published.
+message Ticket {
+  string ticket_id = 1;
+  string event_id = 2;
+  string tier_id = 3;
+  // Inventory hold the ticket was bought from.
+  string hold_id = 4;
+  string customer_id = 5;
+  // Payment that bought the ticket.
+  string payment_id = 6;
+  TicketStatus status = 7;
+  dps.common.v1.Money price = 8;
+  google.protobuf.Timestamp issued_at = 9;
+  // Set once USED.
+  google.protobuf.Timestamp used_at = 10;
+}
+
+// RefundRequest is a ticket refund request. Approval is a TICKET_REFUND
+// maker-checker change in AdminOps (UC-EVT-05).
+message RefundRequest {
+  string refund_id = 1;
+  string ticket_id = 2;
+  string customer_id = 3;
+  RefundRequestStatus status = 4;
+  dps.common.v1.Money amount = 5;
+  // AdminOps TICKET_REFUND change that decides the request.
+  string change_id = 6;
+  google.protobuf.Timestamp requested_at = 7;
+  google.protobuf.Timestamp decided_at = 8;
+}

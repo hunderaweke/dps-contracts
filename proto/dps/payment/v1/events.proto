@@ -1,0 +1,240 @@
+syntax = "proto3";
+
+package dps.payment.v1;
+
+import "dps/common/v1/money.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "dps/payment/v1/payment.proto";
+
+// PAYMENT events. Each message names its record key. Account numbers, names
+// and phones are masked; no PIN, token or QR payload is published.
+
+// PaymentInitiated: a payment was accepted and its Ledger operation started.
+// Record key: payment_id.
+message PaymentInitiated {
+  option (dps.events.v1.event) = {type: "payment.payment.initiated.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Payment payment = 2;
+}
+
+// PaymentCompleted: the rail confirmed the payment (SC-A2A-01). Record key:
+// payment_id.
+message PaymentCompleted {
+  option (dps.events.v1.event) = {type: "payment.payment.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Payment payment = 2;
+}
+
+// PaymentFailed: the rail returned a definite failure and no debit remains
+// (SC-A2A-07). Record key: payment_id.
+message PaymentFailed {
+  option (dps.events.v1.event) = {type: "payment.payment.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // payment.failure_code says why.
+  Payment payment = 2;
+}
+
+// PaymentOutcomeUnknown: the rail outcome is UNKNOWN; TPI status queries or
+// manual review will resolve it (SC-A2A-08). Record key: payment_id.
+message PaymentOutcomeUnknown {
+  option (dps.events.v1.event) = {type: "payment.payment.outcome_unknown.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Payment payment = 2;
+}
+
+// PaymentReversalReason says why a completed payment was reversed.
+enum PaymentReversalReason {
+  PAYMENT_REVERSAL_REASON_UNSPECIFIED = 0;
+  // The rail reversed the payment after confirming it.
+  PAYMENT_REVERSAL_REASON_RAIL_REVERSED = 1;
+  // Operations staff resolved it through an AdminOps change.
+  PAYMENT_REVERSAL_REASON_MANUAL_RESOLUTION = 2;
+  // A customer dispute was upheld.
+  PAYMENT_REVERSAL_REASON_DISPUTE_UPHELD = 3;
+  // The merchant refunded the customer.
+  PAYMENT_REVERSAL_REASON_MERCHANT_REFUND = 4;
+}
+
+// PaymentReversed: a completed payment was refunded by a Ledger REFUND
+// operation. Record key: payment_id.
+message PaymentReversed {
+  option (dps.events.v1.event) = {type: "payment.payment.reversed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Payment payment = 2;
+  PaymentReversalReason reason = 3;
+  // The dps.ledger.v1 REFUND operation; its refund_of_operation_id is
+  // payment.operation_id.
+  string refund_operation_id = 4;
+  // Amount returned to the customer.
+  dps.common.v1.Money refunded_amount = 5;
+  // AdminOps change that authorised the reversal, if any.
+  string change_id = 6;
+}
+
+// BeneficiaryAdded: a customer saved a beneficiary (SC-A2A-05). Record key:
+// beneficiary_id.
+message BeneficiaryAdded {
+  option (dps.events.v1.event) = {type: "payment.beneficiary.added.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Beneficiary beneficiary = 2;
+}
+
+// BeneficiaryDeleted: a customer deleted a saved beneficiary (UC-A2A-04).
+// Record key: beneficiary_id.
+message BeneficiaryDeleted {
+  option (dps.events.v1.event) = {type: "payment.beneficiary.deleted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Last state before deletion.
+  Beneficiary beneficiary = 2;
+}
+
+// RequestToPayCreated: a request to pay was sent or received (SC-ESW-03,
+// SC-ESW-04). Record key: request_to_pay_id.
+message RequestToPayCreated {
+  option (dps.events.v1.event) = {type: "payment.request_to_pay.created.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  RequestToPay request_to_pay = 2;
+}
+
+// RequestToPayPaid: the payer accepted and the linked payment completed
+// (SC-ESW-06). Record key: request_to_pay_id.
+message RequestToPayPaid {
+  option (dps.events.v1.event) = {type: "payment.request_to_pay.paid.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  RequestToPay request_to_pay = 2;
+  // The payment that paid the request.
+  string payment_id = 3;
+}
+
+// RequestToPayDeclined: the payer declined (SC-ESW-08). Record key:
+// request_to_pay_id.
+message RequestToPayDeclined {
+  option (dps.events.v1.event) = {type: "payment.request_to_pay.declined.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  RequestToPay request_to_pay = 2;
+}
+
+// RequestToPayExpired: no answer before expires_at; no reminder was sent
+// (SC-ESW-05). Record key: request_to_pay_id.
+message RequestToPayExpired {
+  option (dps.events.v1.event) = {type: "payment.request_to_pay.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  RequestToPay request_to_pay = 2;
+}
+
+// PreAuthorizationHeld: an amount was held for a later capture (UC-FUE-02).
+// Record key: pre_authorization_id.
+message PreAuthorizationHeld {
+  option (dps.events.v1.event) = {type: "payment.pre_authorization.held.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  PreAuthorization pre_authorization = 2;
+}
+
+// PreAuthorizationCaptured: a merchant captured all or part of the hold; any
+// remainder is released (SC-FUE-01: 2000.00 held, 1650.00 captured, 350.00
+// released). Record key: pre_authorization_id.
+message PreAuthorizationCaptured {
+  option (dps.events.v1.event) = {type: "payment.pre_authorization.captured.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  PreAuthorization pre_authorization = 2;
+  dps.common.v1.Money captured_amount = 3;
+  // held_amount minus captured_amount; zero on a full capture.
+  dps.common.v1.Money released_amount = 4;
+  // The capture payment.
+  string payment_id = 5;
+}
+
+// PreAuthorizationReleaseReason says why held funds were released.
+enum PreAuthorizationReleaseReason {
+  PRE_AUTHORIZATION_RELEASE_REASON_UNSPECIFIED = 0;
+  // The customer cancelled an unused hold (SC-FUE-04).
+  PRE_AUTHORIZATION_RELEASE_REASON_CANCELLED = 1;
+  // The capture failed.
+  PRE_AUTHORIZATION_RELEASE_REASON_FAILURE = 2;
+  // The uncaptured remainder after a partial capture.
+  PRE_AUTHORIZATION_RELEASE_REASON_REMAINDER = 3;
+}
+
+// PreAuthorizationReleased: held funds were released. Record key:
+// pre_authorization_id.
+message PreAuthorizationReleased {
+  option (dps.events.v1.event) = {type: "payment.pre_authorization.released.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  PreAuthorization pre_authorization = 2;
+  PreAuthorizationReleaseReason reason = 3;
+  dps.common.v1.Money released_amount = 4;
+}
+
+// PreAuthorizationExpired: the hold passed expires_at uncaptured and was
+// released (SC-FUE-06). Record key: pre_authorization_id.
+message PreAuthorizationExpired {
+  option (dps.events.v1.event) = {type: "payment.pre_authorization.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  PreAuthorization pre_authorization = 2;
+}
+
+// QrCodeGenerated: a static or dynamic QR was created (UC-ESW-05, UC-MER-03).
+// Record key: qr_id.
+message QrCodeGenerated {
+  option (dps.events.v1.event) = {type: "payment.qr_code.generated.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  QrCode qr_code = 2;
+}
+
+// QrCodeUsed: a dynamic QR was paid (SC-ESW-01). Record key: qr_id.
+message QrCodeUsed {
+  option (dps.events.v1.event) = {type: "payment.qr_code.used.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  QrCode qr_code = 2;
+  // The payment that used the QR.
+  string payment_id = 3;
+}
+
+// QrCodeExpired: a dynamic QR passed expires_at unused. Record key: qr_id.
+message QrCodeExpired {
+  option (dps.events.v1.event) = {type: "payment.qr_code.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  QrCode qr_code = 2;
+}
+
+// MerchantOnboarded: an approved MERCHANT change created an ACTIVE merchant
+// and its static QR (SC-MER-03). Record key: merchant_id.
+message MerchantOnboarded {
+  option (dps.events.v1.event) = {type: "payment.merchant.onboarded.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Merchant merchant = 2;
+  // AdminOps change that authorised the onboarding.
+  string change_id = 3;
+}
+
+// MerchantStatusChanged: a merchant was suspended or reactivated. Record key:
+// merchant_id.
+message MerchantStatusChanged {
+  option (dps.events.v1.event) = {type: "payment.merchant.status_changed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Merchant merchant = 2;
+  MerchantStatus previous_status = 3;
+  // AdminOps change that authorised the change.
+  string change_id = 4;
+}

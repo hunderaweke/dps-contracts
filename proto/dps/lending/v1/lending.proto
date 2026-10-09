@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package dps.lending.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// MILKII Microlending entities, owned by the lending service (dps_lending):
+// consent, in-house credit assessment, offers, disbursement and repayment
+// posted through Ledger. The gRPC service contract comes later; this file
+// holds only the entities and status enums the events carry.
+
+// ConsentType is what a customer consented to.
+enum ConsentType {
+  CONSENT_TYPE_UNSPECIFIED = 0;
+  CONSENT_TYPE_CREDIT_ASSESSMENT = 1;
+  CONSENT_TYPE_AUTO_DEBIT = 2;
+}
+
+// OfferStatus is an offer's lifecycle.
+enum OfferStatus {
+  OFFER_STATUS_UNSPECIFIED = 0;
+  OFFER_STATUS_OPEN = 1;
+  OFFER_STATUS_ACCEPTED = 2;
+  OFFER_STATUS_EXPIRED = 3;
+}
+
+// LoanStatus is a loan's lifecycle.
+enum LoanStatus {
+  LOAN_STATUS_UNSPECIFIED = 0;
+  LOAN_STATUS_ACTIVE = 1;
+  LOAN_STATUS_OVERDUE = 2;
+  LOAN_STATUS_CLOSED = 3;
+  // The disbursement credit was rejected; the schedule is voided (SC-LND-08).
+  LOAN_STATUS_DISBURSEMENT_FAILED = 4;
+}
+
+// InstallmentStatus is one installment's state.
+enum InstallmentStatus {
+  INSTALLMENT_STATUS_UNSPECIFIED = 0;
+  // Scheduled and not yet paid.
+  INSTALLMENT_STATUS_DUE = 1;
+  INSTALLMENT_STATUS_PARTIALLY_PAID = 2;
+  INSTALLMENT_STATUS_PAID = 3;
+  INSTALLMENT_STATUS_OVERDUE = 4;
+}
+
+// RepaymentSource says how a repayment was collected.
+enum RepaymentSource {
+  REPAYMENT_SOURCE_UNSPECIFIED = 0;
+  // The customer repaid (UC-LND-04).
+  REPAYMENT_SOURCE_MANUAL = 1;
+  // The daily schedule collected under AUTO_DEBIT consent (UC-LND-05).
+  REPAYMENT_SOURCE_AUTO_DEBIT = 2;
+}
+
+// Consent is a customer's credit assessment or auto-debit consent.
+message Consent {
+  string consent_id = 1;
+  string customer_id = 2;
+  ConsentType type = 3;
+  // Account auto-debit collects from. Empty for CREDIT_ASSESSMENT.
+  string account_id = 4;
+  google.protobuf.Timestamp granted_at = 5;
+  // Set once revoked.
+  google.protobuf.Timestamp revoked_at = 6;
+}
+
+// CreditAssessment is an in-house MILKII decision. Raw scoring inputs and
+// scores are never published.
+message CreditAssessment {
+  string assessment_id = 1;
+  string customer_id = 2;
+  string consent_id = 3;
+  bool eligible = 4;
+  // Maximum principal when eligible.
+  dps.common.v1.Money limit = 5;
+  // Tenors offered when eligible.
+  repeated int32 tenor_days = 6;
+  // Set when not eligible, for example "insufficient_history".
+  string decline_reason = 7;
+  // Scoring model version, for audit.
+  string model_version = 8;
+  google.protobuf.Timestamp assessed_at = 9;
+}
+
+// Offer is a MILKII offer made for an application.
+message Offer {
+  string offer_id = 1;
+  string application_id = 2;
+  string customer_id = 3;
+  string product_code = 4;
+  dps.common.v1.Money principal = 5;
+  int32 tenor_days = 6;
+  // Principal plus interest and fees.
+  dps.common.v1.Money total_repayable = 7;
+  OfferStatus status = 8;
+  google.protobuf.Timestamp expires_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// Loan is the loan aggregate.
+message Loan {
+  string loan_id = 1;
+  string offer_id = 2;
+  string customer_id = 3;
+  string product_code = 4;
+  // Account credited at disbursement.
+  string account_id = 5;
+  dps.common.v1.Money principal = 6;
+  dps.common.v1.Money total_repayable = 7;
+  dps.common.v1.Money outstanding = 8;
+  LoanStatus status = 9;
+  // Ledger operation that credited the principal.
+  string disbursement_operation_id = 10;
+  google.protobuf.Timestamp disbursed_at = 11;
+  // Final installment due date.
+  google.protobuf.Timestamp maturity_at = 12;
+  // Set once CLOSED.
+  google.protobuf.Timestamp closed_at = 13;
+}
+
+// ScheduleSummary summarises a loan's repayment schedule.
+message ScheduleSummary {
+  int32 installment_count = 1;
+  dps.common.v1.Money installment_amount = 2;
+  google.protobuf.Timestamp first_due_at = 3;
+  google.protobuf.Timestamp final_due_at = 4;
+  dps.common.v1.Money total_repayable = 5;
+}
+
+// InstallmentAllocation is the part of a repayment applied to one
+// installment.
+message InstallmentAllocation {
+  int32 installment_no = 1;
+  dps.common.v1.Money amount_applied = 2;
+  // Installment status after the allocation.
+  InstallmentStatus status = 3;
+}
+
+// Repayment is a repayment posted through Ledger.
+message Repayment {
+  string repayment_id = 1;
+  string loan_id = 2;
+  string customer_id = 3;
+  dps.common.v1.Money amount = 4;
+  // Ledger operation that debited the repayment.
+  string operation_id = 5;
+  RepaymentSource source = 6;
+  repeated InstallmentAllocation allocations = 7;
+  // Loan outstanding after the repayment.
+  dps.common.v1.Money outstanding_after = 8;
+  google.protobuf.Timestamp received_at = 9;
+}

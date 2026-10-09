@@ -1,0 +1,121 @@
+syntax = "proto3";
+
+package dps.adminops.v1;
+
+import "dps/adminops/v1/adminops.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+import "google/protobuf/timestamp.proto";
+
+// Admin Ops events. Change events are keyed by change_id, case events by
+// case_id and report events by report_run_id. Owning services apply a change
+// when they consume ChangeApproved for their owning_service.
+
+// ChangeSubmitted: a maker submitted a change (UC-ADM-01). Record key:
+// change_id.
+message ChangeSubmitted {
+  option (dps.events.v1.event) = {type: "adminops.change.submitted.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Change change = 2;
+}
+
+// ChangeApproved: a checker, who is not the maker, approved a change. The
+// owning service applies it next. Record key: change_id.
+message ChangeApproved {
+  option (dps.events.v1.event) = {type: "adminops.change.approved.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Change change = 2;
+}
+
+// ChangeRejected: a checker rejected a change with a comment; nothing is
+// applied (SC-ADM-05). Record key: change_id.
+message ChangeRejected {
+  option (dps.events.v1.event) = {type: "adminops.change.rejected.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Change change = 2;
+}
+
+// ChangeApplied: the owning service applied an approved change. Record key:
+// change_id.
+message ChangeApplied {
+  option (dps.events.v1.event) = {type: "adminops.change.applied.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Change change = 2;
+  // Service that reported the change applied.
+  string applied_by_service = 3;
+}
+
+// ChangeApplyFailed: the owning service could not apply an approved change
+// (SC-ADM-07). Record key: change_id.
+message ChangeApplyFailed {
+  option (dps.events.v1.event) = {type: "adminops.change.apply_failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Change change = 2;
+  string applied_by_service = 3;
+  // Error code from the owning service, for example "cbs.unavailable".
+  string failure_code = 4;
+}
+
+// ChangeExpired: a change stayed PENDING_APPROVAL for 72 hours
+// (SC-ADM-08). Record key: change_id.
+message ChangeExpired {
+  option (dps.events.v1.event) = {type: "adminops.change.expired.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Change change = 2;
+}
+
+// CaseOpened: a case was opened. Record key: case_id.
+message CaseOpened {
+  option (dps.events.v1.event) = {type: "adminops.case.opened.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Case case_record = 2;
+}
+
+// CaseAssigned: a case was assigned or reassigned. Record key: case_id.
+message CaseAssigned {
+  option (dps.events.v1.event) = {type: "adminops.case.assigned.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Case case_record = 2;
+  // Empty on first assignment.
+  string previous_assignee_id = 3;
+}
+
+// CaseEscalated: a case was escalated and its SLA recalculated (SC-ADM-06).
+// Record key: case_id.
+message CaseEscalated {
+  option (dps.events.v1.event) = {type: "adminops.case.escalated.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // sla_due_at holds the recalculated SLA.
+  Case case_record = 2;
+  google.protobuf.Timestamp previous_sla_due_at = 3;
+}
+
+// CaseClosed: a case was closed (UC-ADM-04). Record key: case_id.
+message CaseClosed {
+  option (dps.events.v1.event) = {type: "adminops.case.closed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Case case_record = 2;
+  // Resolution code from the case catalogue.
+  string resolution_code = 3;
+  // True when closed by sla_due_at.
+  bool within_sla = 4;
+}
+
+// ReportRunCompleted: a report run finished, SUCCEEDED or FAILED
+// (UC-ADM-05). Record key: report_run_id.
+message ReportRunCompleted {
+  option (dps.events.v1.event) = {type: "adminops.report_run.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  ReportRun report_run = 2;
+}

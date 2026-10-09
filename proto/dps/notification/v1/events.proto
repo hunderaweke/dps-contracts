@@ -6,8 +6,9 @@ import "dps/events/v1/metadata.proto";
 import "dps/events/v1/options.proto";
 import "dps/notification/v1/notification.proto";
 
-// Notification events. Record key: notification_id. Rendered content is
-// never included; template_id and template_version are enough to audit it.
+// Notification events. Record key: notification_id, unless the event says
+// otherwise. Rendered content is never included; template_id and
+// template_version are enough to audit it.
 
 // MessageDelivered: the gateway confirmed delivery.
 message MessageDelivered {
@@ -23,4 +24,30 @@ message MessageFailed {
 
   dps.events.v1.EventMetadata metadata = 1;
   Notification notification = 2;
+}
+
+// MessageRead: the customer marked an inbox message read (SC-NOT-03).
+message MessageRead {
+  option (dps.events.v1.event) = {type: "notification.message.read.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // Status is DELIVERY_STATUS_READ.
+  Notification notification = 2;
+}
+
+// PreferenceUpdated: a subject changed a channel preference for a
+// notification category (UC-NOT-04). Mandatory alerts are unaffected.
+// Record key: subject_id.
+message PreferenceUpdated {
+  option (dps.events.v1.event) = {type: "notification.preference.updated.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  // AUTH subject ID of the customer.
+  string subject_id = 2;
+  // Notification category, for example "transactions" or "promotions".
+  string category = 3;
+  DeliveryChannel channel = 4;
+  bool enabled = 5;
+  // Delivery language: "en", "am" or "om".
+  string language = 6;
 }

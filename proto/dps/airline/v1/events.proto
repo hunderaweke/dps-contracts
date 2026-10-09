@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package dps.airline.v1;
+
+import "dps/airline/v1/airline.proto";
+import "dps/events/v1/metadata.proto";
+import "dps/events/v1/options.proto";
+
+// AIRLINE events. No passenger document numbers or contact details.
+
+// BookingHeld: a booking was made and its PNR held until hold_expires_at
+// (UC-AIRL-02). Record key: booking_id.
+message BookingHeld {
+  option (dps.events.v1.event) = {type: "airline.booking.held.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Booking booking = 2;
+}
+
+// BookingTicketed: the fare was paid and the airline issued every ticket
+// (UC-AIRL-03, SC-AIRL-01). Record key: booking_id.
+message BookingTicketed {
+  option (dps.events.v1.event) = {type: "airline.booking.ticketed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Booking booking = 2;
+  // Tickets issued, each ISSUED.
+  repeated Ticket tickets = 3;
+  // Payment that bought the tickets.
+  string payment_id = 4;
+}
+
+// BookingCancelReason says why a booking was cancelled.
+enum BookingCancelReason {
+  BOOKING_CANCEL_REASON_UNSPECIFIED = 0;
+  // The customer cancelled a held booking (UC-AIRL-04).
+  BOOKING_CANCEL_REASON_CUSTOMER = 1;
+  // The hold lapsed before payment.
+  BOOKING_CANCEL_REASON_HOLD_EXPIRED = 2;
+  // The airline refused ticket issue after payment (SC-AIRL-08).
+  BOOKING_CANCEL_REASON_TICKETING_FAILED = 3;
+}
+
+// BookingCancelled: the booking was cancelled and its PNR released. Record
+// key: booking_id.
+message BookingCancelled {
+  option (dps.events.v1.event) = {type: "airline.booking.cancelled.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Booking booking = 2;
+  BookingCancelReason reason = 3;
+}
+
+// BookingTicketingFailed: the airline refused ticket issue after payment.
+// The PNR is cancelled, compensation is requested and the payment is
+// reversed (SC-AIRL-08). Record key: booking_id.
+message BookingTicketingFailed {
+  option (dps.events.v1.event) = {type: "airline.booking.ticketing_failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Booking booking = 2;
+  // Payment being reversed.
+  string payment_id = 3;
+  // Airline or CBS failure code.
+  string failure_code = 4;
+  // True once the payment reversal (compensation) was requested.
+  bool compensation_requested = 5;
+}
+
+// RefundRequested: the customer confirmed a refund quote and the tickets
+// moved to REFUND_PENDING (UC-AIRL-05). The refund carries the quoted gross,
+// penalty and net. Record key: refund_id.
+message RefundRequested {
+  option (dps.events.v1.event) = {type: "airline.refund.requested.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Refund refund = 2;
+}
+
+// RefundCompleted: the airline accepted the refund, net was returned to the
+// account and the tickets are REFUNDED (SC-AIRL-02). The refund carries the
+// refund operation_id and original payment_id. Record key: refund_id.
+message RefundCompleted {
+  option (dps.events.v1.event) = {type: "airline.refund.completed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Refund refund = 2;
+  // TICKETED or PARTIALLY_REFUNDED after this refund (SC-AIRL-04).
+  BookingStatus booking_status = 3;
+}
+
+// RefundFailed: the airline rejected the refund and the tickets returned to
+// ISSUED (SC-AIRL-07). No money moved. Record key: refund_id.
+message RefundFailed {
+  option (dps.events.v1.event) = {type: "airline.refund.failed.v1"};
+
+  dps.events.v1.EventMetadata metadata = 1;
+  Refund refund = 2;
+  // Airline or CBS failure code.
+  string failure_code = 3;
+}

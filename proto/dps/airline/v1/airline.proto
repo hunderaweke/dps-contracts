@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package dps.airline.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// ET Airlines Booking entities, owned by the airline service (dps_airline).
+// Search, PNR hold, ticketing and refunds go through the CBS middleware.
+// The gRPC service contract comes later; this file holds only the entities
+// and status enums the events carry.
+
+// BookingStatus is the booking lifecycle.
+enum BookingStatus {
+  BOOKING_STATUS_UNSPECIFIED = 0;
+  // PNR held until hold_expires_at, not yet paid.
+  BOOKING_STATUS_HELD = 1;
+  BOOKING_STATUS_TICKETED = 2;
+  // Some, not all, tickets were refunded (SC-AIRL-04).
+  BOOKING_STATUS_PARTIALLY_REFUNDED = 3;
+  BOOKING_STATUS_CANCELLED = 4;
+}
+
+// TicketStatus is an airline ticket's lifecycle. Every change is recorded in
+// the ticket status history.
+enum TicketStatus {
+  TICKET_STATUS_UNSPECIFIED = 0;
+  TICKET_STATUS_ISSUED = 1;
+  TICKET_STATUS_REFUND_PENDING = 2;
+  TICKET_STATUS_REFUNDED = 3;
+}
+
+// RefundStatus is an airline refund's lifecycle.
+enum RefundStatus {
+  REFUND_STATUS_UNSPECIFIED = 0;
+  REFUND_STATUS_REQUESTED = 1;
+  REFUND_STATUS_COMPLETED = 2;
+  REFUND_STATUS_FAILED = 3;
+}
+
+// FlightSegment is one flight in a booking.
+message FlightSegment {
+  int32 segment_no = 1;
+  // Carrier and flight number, for example "ET302".
+  string flight_number = 2;
+  // IATA airport codes, for example "ADD" and "DXB".
+  string origin = 3;
+  string destination = 4;
+  google.protobuf.Timestamp departure_at = 5;
+  string fare_class = 6;
+}
+
+// Booking is the booking aggregate. Passenger data is minimised and not
+// carried here.
+message Booking {
+  string booking_id = 1;
+  string customer_id = 2;
+  // Airline record locator.
+  string pnr = 3;
+  BookingStatus status = 4;
+  repeated FlightSegment segments = 5;
+  int32 passenger_count = 6;
+  // Fare total for all passengers.
+  dps.common.v1.Money total = 7;
+  // When the PNR hold lapses if unpaid.
+  google.protobuf.Timestamp hold_expires_at = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Ticket is an issued airline ticket.
+message Ticket {
+  string ticket_number = 1;
+  string booking_id = 2;
+  string passenger_id = 3;
+  TicketStatus status = 4;
+  dps.common.v1.Money fare = 5;
+  google.protobuf.Timestamp issued_at = 6;
+}
+
+// Refund is an airline refund request and its outcome. Money moves as a
+// Ledger REFUND operation against the original payment.
+message Refund {
+  string refund_id = 1;
+  string booking_id = 2;
+  string customer_id = 3;
+  RefundStatus status = 4;
+  // Tickets included in the refund.
+  repeated string ticket_numbers = 5;
+  // Airline-priced refund before penalty, for example 9000.00 ETB.
+  dps.common.v1.Money gross = 6;
+  // Fare-rule penalty, for example 1500.00 ETB.
+  dps.common.v1.Money penalty = 7;
+  // gross minus penalty, returned to the account, for example 7500.00 ETB.
+  dps.common.v1.Money net = 8;
+  // Payment that bought the tickets.
+  string payment_id = 9;
+  // Ledger REFUND operation. Empty until the refund is posted.
+  string operation_id = 10;
+  google.protobuf.Timestamp requested_at = 11;
+  google.protobuf.Timestamp completed_at = 12;
+}

@@ -130,3 +130,41 @@ message ResolveAccountResponse {
   // False when the account cannot receive credits.
   bool can_receive = 2;
 }
+
+// KycLevel is a customer's KYC level, ranked from lowest to highest. It caps
+// the products and accounts a customer may hold.
+enum KycLevel {
+  KYC_LEVEL_UNSPECIFIED = 0;
+  // Reached through digital onboarding with Fayda.
+  KYC_LEVEL_1 = 1;
+  // Raised at a branch.
+  KYC_LEVEL_2 = 2;
+}
+
+// Customer is the customer master, linked to the CBS customer. Created once
+// at onboarding, without any account. No national ID is held here.
+message Customer {
+  string customer_id = 1;
+  // The CBS customer number.
+  string cbs_customer_number = 2;
+  KycLevel kyc_level = 3;
+  string home_branch_code = 4;
+  // Preferred language, for example "om", "am" or "en".
+  string language = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// ContactPointKind is the type of a customer contact point.
+enum ContactPointKind {
+  CONTACT_POINT_KIND_UNSPECIFIED = 0;
+  CONTACT_POINT_KIND_PHONE = 1;
+  CONTACT_POINT_KIND_EMAIL = 2;
+}
+
+// ContactPointChangeType says what happened to a contact point.
+enum ContactPointChangeType {
+  CONTACT_POINT_CHANGE_TYPE_UNSPECIFIED = 0;
+  CONTACT_POINT_CHANGE_TYPE_ADDED = 1;
+  CONTACT_POINT_CHANGE_TYPE_UPDATED = 2;
+  CONTACT_POINT_CHANGE_TYPE_REMOVED = 3;
+}

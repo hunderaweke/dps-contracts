@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package dps.utility.v1;
+
+import "dps/common/v1/money.proto";
+import "google/protobuf/timestamp.proto";
+
+// Utility Payment entities, owned by the utility service (dps_utility). Bills
+// are inquired and paid through the CBS middleware via an aggregator (Derash,
+// WeBirr, UniCash) chosen from Bank regional usage data, otherwise the biller
+// default route. The gRPC service contract comes later; this file holds only
+// the entities and status enums the events carry.
+//
+// Aggregators and billers are configuration data, so they are identified by
+// code strings, for example aggregator_code "DERASH" or "WEBIRR" and
+// biller_code "EEU".
+
+// RouteSource says how an inquiry's aggregator was chosen.
+enum RouteSource {
+  ROUTE_SOURCE_UNSPECIFIED = 0;
+  // Highest usage share for the customer's region (SC-BIL-02).
+  ROUTE_SOURCE_REGIONAL_USAGE = 1;
+  // No usage data for the region; the biller default (SC-BIL-04).
+  ROUTE_SOURCE_BILLER_DEFAULT = 2;
+}
+
+// BillPaymentStatus is a bill payment's outcome.
+enum BillPaymentStatus {
+  BILL_PAYMENT_STATUS_UNSPECIFIED = 0;
+  BILL_PAYMENT_STATUS_COMPLETED = 1;
+  BILL_PAYMENT_STATUS_FAILED = 2;
+}
+
+// BillInquiry is a bill looked up through the CBS middleware.
+message BillInquiry {
+  string inquiry_id = 1;
+  string customer_id = 2;
+  string biller_code = 3;
+  // Aggregator the inquiry was routed to.
+  string aggregator_code = 4;
+  RouteSource route_source = 5;
+  // Customer's region used for routing.
+  string region = 6;
+  // Bill reference entered by the customer, for example "EEU-123".
+  string bill_reference = 7;
+  dps.common.v1.Money amount_due = 8;
+  // When the inquiry stops being payable.
+  google.protobuf.Timestamp expires_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+// BillPayment is the bill payment aggregate.
+message BillPayment {
+  string bill_payment_id = 1;
+  string inquiry_id = 2;
+  string customer_id = 3;
+  string biller_code = 4;
+  string aggregator_code = 5;
+  dps.common.v1.Money amount = 6;
+  // True when amount is less than the inquiry's amount_due.
+  bool partial = 7;
+  BillPaymentStatus status = 8;
+  // Ledger operation that runs the CBS bill-payment call.
+  string operation_id = 9;
+  // Biller receipt reference, set once COMPLETED.
+  string biller_receipt_reference = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp completed_at = 12;
+}
+
+// AggregatorShare is one aggregator's usage share for a region and biller.
+message AggregatorShare {
+  string aggregator_code = 1;
+  // Share in basis points; 7000 is 70 percent. Shares sum to 10000.
+  int32 share_bps = 2;
+}
